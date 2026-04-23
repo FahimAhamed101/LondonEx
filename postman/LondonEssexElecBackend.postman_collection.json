@@ -971,6 +971,122 @@
       "name": "Booking Flow",
       "item": [
         {
+          "name": "Mock Registration Data",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Returns random mock registration data shaped for the NET registration flow, with optional course-aware values when a valid `courseId` is provided.\n\nAuth: none.\nMethod: GET\nQuery param: `courseId`\nSuccess: 200 OK\n\nResponse highlights:\n- `data.mockRegistration.personalDetails`\n- `data.mockRegistration.assessmentDetails`\n- `data.mockRegistration.employerDetails`\n- `data.mockRegistration.trainingProviderDetails`\n- `data.pdfCoverage`",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/mock-registration-data?courseId=6807c2b1f2b7e2a4d4c12345",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "mock-registration-data"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "6807c2b1f2b7e2a4d4c12345"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AM2 Checklist Flow By Course",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Returns the AM2 checklist flow definition for a given course, including course details, checklist sections/items, flow steps, and a coverage report comparing the backend flow with the provided AM2 checklist screens.\n\nAuth: none.\nMethod: GET\nQuery param: `courseId`\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/am2-checklist-flow?courseId=6807c2b1f2b7e2a4d4c12345",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "am2-checklist-flow"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "6807c2b1f2b7e2a4d4c12345"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AM2E Checklist Flow By Course",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Returns the AM2E checklist flow definition for a given course. Use this when the user selects an eligible qualification and `Before 3rd September 2023` in the NVQ registration date step.\n\nAuth: none.\nMethod: GET\nQuery param: `courseId`\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/am2e-checklist-flow?courseId=6807c2b1f2b7e2a4d4c12345",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "am2e-checklist-flow"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "6807c2b1f2b7e2a4d4c12345"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AM2E V1 Checklist Flow By Course",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Returns the AM2E V1 checklist flow definition for a given course. Use this when the user selects an eligible qualification and `After September 2023` in the NVQ registration date step.\n\nAuth: none.\nMethod: GET\nQuery param: `courseId`\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/am2e-v1-checklist-flow?courseId=6807c2b1f2b7e2a4d4c12345",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bookings",
+                "am2e-v1-checklist-flow"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "6807c2b1f2b7e2a4d4c12345"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Documents Screen",
           "request": {
             "description": "Returns the first booking-flow page after the user has completed the initial course booking / eligibility journey.\n\nThis is the first screen shown for the booking flow in the screenshots: `Upload Full Certificate`.\n\nAuth: Bearer token required.\nMethod: GET\nPath param: `bookingId`\nSuccess: 200 OK\n\nImportant note:\n- This screen is the first page of the later AM2 flow.\n- The earlier eligibility modal is loaded from `GET /api/courses/{{courseSlug}}/book-now`.\n- After a booking exists, this endpoint is used to render the new documents screen for that booking.\n\nResponse highlights:\n- `data.screen.steps`: Progress stepper (`Documents`, `Checklist`, `Signatures`, etc.).\n- `data.screen.title`: Usually `Upload Full Certificate`.\n- `data.screen.requirements`: Upload cards shown on the page.\n- `data.screen.actions.continue`: Next API for the checklist summary screen.",

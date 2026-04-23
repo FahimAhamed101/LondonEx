@@ -2,6 +2,10 @@ const express = require("express");
 
 const {
   createBooking,
+  getAm2ChecklistFlowByCourseId,
+  getAm2eChecklistFlowByCourseId,
+  getAm2eV1ChecklistFlowByCourseId,
+  getMockRegistrationData,
   getMyDashboard,
   listMyBookings,
   getMyBookingById,
@@ -32,12 +36,19 @@ const {
   payForMyBooking,
 } = require("../controllers/bookingController");
 const { requireAuth } = require("../middleware/authMiddleware");
-const { uploadBookingDocument } = require("../middleware/uploadMiddleware");
+const {
+  uploadBookingDocument,
+  uploadBookingSignatureImage,
+} = require("../middleware/uploadMiddleware");
 
 const router = express.Router();
 
 router.get("/provider-signature/:token", getTrainingProviderSignatureByToken);
 router.post("/provider-signature/:token", submitTrainingProviderSignatureByToken);
+router.get("/am2-checklist-flow", getAm2ChecklistFlowByCourseId);
+router.get("/am2e-checklist-flow", getAm2eChecklistFlowByCourseId);
+router.get("/am2e-v1-checklist-flow", getAm2eV1ChecklistFlowByCourseId);
+router.get("/mock-registration-data", getMockRegistrationData);
 
 router.use(requireAuth);
 
@@ -50,7 +61,11 @@ router.get("/:id/flow/checklist", getMyBookingChecklistScreen);
 router.get("/:id/flow/checklist/full", getMyBookingChecklistFullScreen);
 router.patch("/:id/flow/checklist", saveMyBookingChecklist);
 router.get("/:id/flow/signatures", getMyBookingSignaturesScreen);
-router.post("/:id/flow/signatures/candidate", submitMyBookingCandidateSignature);
+router.post(
+  "/:id/flow/signatures/candidate",
+  uploadBookingSignatureImage,
+  submitMyBookingCandidateSignature
+);
 router.post("/:id/flow/signatures/training-provider/request", requestMyBookingTrainingProviderSignature);
 router.get("/:id/flow/submit", getMyBookingSubmitScreen);
 router.post("/:id/flow/submit", submitMyBookingFlow);

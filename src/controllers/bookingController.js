@@ -203,6 +203,518 @@ function parsePagination(query) {
   };
 }
 
+function pickRandom(items) {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function randomDigits(length) {
+  let output = "";
+
+  while (output.length < length) {
+    output += Math.floor(Math.random() * 10);
+  }
+
+  return output.slice(0, length);
+}
+
+function randomUkPostcode() {
+  const outward = pickRandom(["E1", "SW1A", "M1", "B1", "LS1", "SE10", "EC1A", "N1"]);
+  const inward = `${Math.floor(Math.random() * 9) + 1}${pickRandom(["AA", "AB", "BB", "CD", "EF", "GH"])}`;
+  return `${outward} ${inward}`;
+}
+
+function randomPhoneNumber() {
+  return `07${randomDigits(9)}`;
+}
+
+function randomDateOfBirth() {
+  const year = 1984 + Math.floor(Math.random() * 14);
+  const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, "0");
+  const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildMockRegistrationData(course = null) {
+  const titles = ["Mr", "Mrs", "Ms", "Miss"];
+  const firstNames = ["Daniel", "James", "Aisha", "Olivia", "Mason", "Sophie", "Arif", "Emily"];
+  const lastNames = ["Carter", "Rahman", "Patel", "Thompson", "Hughes", "Walker", "Ahmed", "Wilson"];
+  const towns = ["London", "Ilford", "Croydon", "Luton", "Birmingham", "Leeds", "Manchester"];
+  const streetNames = ["King Street", "Victoria Road", "Station Lane", "Park Avenue", "High Street"];
+  const companyPrefixes = ["North", "Prime", "Apex", "Summit", "Metro", "Bright"];
+  const companySuffixes = ["Electrical", "Training", "Assessment", "Compliance", "Services"];
+  const awardingBodies = ["city-and-guilds", "eal", "nja", "other"];
+  const fundingOptions = ["england-16-18", "england-19-plus", "other"];
+  const assessmentTypes = [
+    "am2",
+    "am2e",
+    "awcs-v1-0",
+    "am2ed",
+    "am20",
+    "cable-jointing",
+    "am2e-v1-1",
+    "am2s-v1-1-2",
+    "aqdsvn",
+  ];
+
+  const title = pickRandom(titles);
+  const firstName = pickRandom(firstNames);
+  const lastName = pickRandom(lastNames);
+  const fullName = `${firstName} ${lastName}`;
+  const town = pickRandom(towns);
+  const companyName = `${pickRandom(companyPrefixes)} ${pickRandom(companySuffixes)} Ltd`;
+  const trainingProviderName = `${pickRandom(companyPrefixes)} Skills Academy`;
+  const emailSlug = `${firstName}.${lastName}`.toLowerCase();
+  const trainingCenter =
+    normalizeString(course?.location) || "London & Essex Electrical Training";
+
+  return {
+    course: course
+      ? {
+          id: String(course._id),
+          title: course.title || "",
+          slug: course.slug || "",
+          qualification: course.qualification || "",
+          location: course.location || "",
+          schedule: course.schedule || "",
+        }
+      : null,
+    personalDetails: {
+      title,
+      firstName,
+      lastName,
+      fullName,
+      dateOfBirth: randomDateOfBirth(),
+      niNumber: `QQ${randomDigits(6)}C`,
+      email: `${emailSlug}@example.com`,
+      mobileNumber: randomPhoneNumber(),
+      phoneNumber: randomPhoneNumber(),
+      addressLine1: `${Math.floor(Math.random() * 180) + 1} ${pickRandom(streetNames)}`,
+      addressLine2: "Flat 2B",
+      address: `${Math.floor(Math.random() * 180) + 1} ${pickRandom(streetNames)}, Flat 2B`,
+      town,
+      city: town,
+      postcode: randomUkPostcode(),
+      trainingCenter,
+    },
+    assessmentDetails: {
+      apprentice: pickRandom(["yes", "no"]),
+      uln: randomDigits(10),
+      funding: pickRandom(fundingOptions),
+      awardingBody: pickRandom(awardingBodies),
+      reasonableAdjustments: pickRandom(["yes", "no"]),
+      recognitionOfPriorLearning: pickRandom(["yes", "no"]),
+      assessmentType: pickRandom(assessmentTypes),
+    },
+    employerDetails: {
+      companyName,
+      email: `office@${companyName.toLowerCase().replace(/[^a-z0-9]+/g, "")}.co.uk`,
+      contactName: `Manager ${lastName}`,
+      contactNumber: randomPhoneNumber(),
+      address1: `${Math.floor(Math.random() * 220) + 1} Industrial Estate`,
+      address2: "Unit 4",
+      address3: "",
+      address4: "",
+      town,
+      postcode: randomUkPostcode(),
+      noEmployerStatus: pickRandom(["na", "self-employed", "employed"]),
+    },
+    trainingProviderDetails: {
+      companyName: trainingProviderName,
+      email: `admin@${trainingProviderName.toLowerCase().replace(/[^a-z0-9]+/g, "")}.co.uk`,
+      contactName: `Tutor ${lastName}`,
+      contactNumber: randomPhoneNumber(),
+      address1: `${Math.floor(Math.random() * 140) + 1} College Road`,
+      address2: "Training Centre",
+      address3: "",
+      address4: "",
+      town: pickRandom(towns),
+      postcode: randomUkPostcode(),
+    },
+    privacyConfirmation: true,
+  };
+}
+
+function buildPdfCoverageReport() {
+  return {
+    coveredFields: [
+      "title",
+      "firstName",
+      "lastName",
+      "dateOfBirth",
+      "niNumber",
+      "email",
+      "mobileNumber",
+      "addressLine1",
+      "addressLine2",
+      "town",
+      "postcode",
+      "apprentice",
+      "uln",
+      "funding",
+      "awardingBody",
+      "reasonableAdjustments",
+      "recognitionOfPriorLearning",
+      "assessmentType",
+      "employer company/contact/address fields",
+      "training provider company/contact/address fields",
+      "privacyConfirmation",
+    ],
+    likelyMissingFields: [
+      {
+        field: "employer no-employer/self-employed choice",
+        status: "missing_in_backend_model",
+        note:
+          "The PDF/screenshot shows a dedicated N/A or self-employed selection on the employer step, but the backend only stores employer organization fields.",
+      },
+    ],
+    notes: [
+      "The current backend already stores both town and city; the PDF screens only visibly require town.",
+      "Address 3 and Address 4 are supported for employer and training provider.",
+      "This comparison is based on the provided PDF screenshots and existing form definitions in the codebase.",
+    ],
+  };
+}
+
+function buildAm2ChecklistFlowCoverageReport() {
+  return {
+    checklistCoverage: {
+      matched: [
+        "Section A1 with 2 checklist items",
+        "Sections A2-A5 with 19 checklist items",
+        "Section B with 14 checklist items",
+        "Section C with 3 checklist items",
+        "Section D with 5 checklist items",
+        "Section E with 4 checklist items",
+        "Knowledge level options: Extensive, Adequate, Limited, Unsure",
+        "Experience level options: Extensive, Adequate, Limited, Unsure",
+        "Checklist progress summary and per-section completion counts",
+        "Documents -> Checklist -> Signatures -> Submit -> Review -> Payment -> Confirmed step flow",
+      ],
+      missingFields: [],
+      mismatches: [
+        {
+          field: "candidate signature upload file guidance",
+          status: "ui_backend_mismatch",
+          note:
+            "The screenshot mentions a square image under 100KB, but the backend currently accepts JPG/PNG/WEBP uploads up to 5MB and does not enforce square dimensions.",
+        },
+        {
+          field: "submit gate after checklist",
+          status: "flow_rule_changed",
+          note:
+            "The screenshot flow implies signatures are required before submit, but the backend currently allows submission after documents and checklist are complete.",
+        },
+      ],
+      notes: [
+        "Based on the provided AM2 checklist screenshots, the checklist section counts and assessment levels are already represented in the backend.",
+        "No checklist-item data fields appear to be missing for the AM2 self-assessment flow.",
+      ],
+    },
+  };
+}
+
+function buildAm2ChecklistFlowPreview(course) {
+  const checklistTemplates = buildChecklistTemplates();
+  const checklistSections = checklistTemplates.map((section) => ({
+    id: section.id,
+    key: section.key,
+    label: section.label,
+    title: section.title,
+    duration: section.duration,
+    summary: section.summary,
+    totalItems: section.items.length,
+    items: section.items.map((criterion, index) => ({
+      id: `${section.id}-item-${index + 1}`,
+      no: index + 1,
+      criterion,
+      options: {
+        knowledge: getChecklistOptionSet("knowledge"),
+        experience: getChecklistOptionSet("experience"),
+      },
+    })),
+  }));
+
+  return {
+    course: {
+      id: String(course._id),
+      title: course.title || "",
+      slug: course.slug || "",
+      qualification: course.qualification || "",
+      location: course.location || "",
+      schedule: course.schedule || "",
+      duration: course.duration || "",
+      price: course.price || 0,
+      currency: course.currency || "GBP",
+      thumbnailUrl: course.thumbnailUrl || course.galleryImages?.[0] || "",
+      galleryImages: course.galleryImages || [],
+    },
+    flow: {
+      steps: BOOKING_FLOW_STEPS.map((step, index) => ({
+        ...step,
+        order: index + 1,
+      })),
+      documents: {
+        title: "Upload Full Certificate",
+        subtitle: "For those who don't already hold AM2",
+        importantInformation: "You must upload all required documents before proceeding.",
+        requirements: [
+          {
+            id: "full_certificate",
+            title: "Learner History Report or Walled Garden Report (City & Guilds)",
+            description: "Requirements from your provider",
+            acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+          },
+        ],
+      },
+      checklistSummary: {
+        title: "AM2 Checklist",
+        subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+        overallCompletion: 0,
+        importantInformation: "Important Information",
+        notice:
+          "Complete all sections of the checklist. You can use the full checklist page for a detailed view.",
+      },
+      checklistSections,
+      signatures: {
+        candidate: {
+          supportedTypes: ["draw", "upload"],
+          uploadFields: ["file", "image", "signature", "candidateSignature"],
+        },
+        trainingProvider: {
+          fields: ["trainingProviderEmail", "trainingProviderName", "subject", "message"],
+        },
+      },
+      submit: {
+        title: "Review & Submit",
+        checks: [
+          "NET Candidate Registration Form",
+          "AM2 Checklist",
+          "Candidate Signature",
+          "Training Provider Signature",
+        ],
+      },
+      reviewStates: [
+        { key: "submitted", label: "Application Submitted" },
+        { key: "under_review", label: "Under Review" },
+        { key: "approved", label: "Application Approved" },
+      ],
+      payment: {
+        title: "Proceed to Payment",
+        availableAfterApproval: true,
+      },
+      confirmed: {
+        title: "Booking Confirmed",
+      },
+    },
+    coverage: buildAm2ChecklistFlowCoverageReport(),
+  };
+}
+
+function buildAm2eChecklistCoverageReport(variant) {
+  return {
+    checklistCoverage: {
+      matched: [
+        `Checklist title switches to ${variant === "am2e-v1" ? "AM2E V1 Checklist" : "AM2E Checklist"}`,
+        "Section counts remain aligned with the AM2-style self-assessment flow",
+        "Documents step is variant-specific for experienced worker journeys",
+        "Eligibility branch uses qualification selection plus NVQ registration date",
+      ],
+      missingFields: [],
+      mismatches: [
+        {
+          field: "eligibility branch persistence",
+          status: "backend_preview_only",
+          note:
+            "These endpoints return the checklist variant definition by course and branch rule, but they do not yet persist the chosen branch onto a booking record automatically.",
+        },
+      ],
+      notes: [
+        "Use the qualification selection plus NVQ registration date to decide whether to call the AM2E or AM2E V1 variant endpoint.",
+        "The screenshots suggest the same checklist section structure with different document requirements and checklist naming.",
+      ],
+    },
+  };
+}
+
+function buildAm2eVariantDocumentRequirements(variant) {
+  if (variant === "am2e-v1") {
+    return [
+      {
+        id: "experienced-worker-qualification-certificate",
+        title: "The Experienced Worker Qualification Certificate",
+        description: "Issued from your City & Guilds 2346 or 2347, 2357, or equivalent route",
+        acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+      },
+      {
+        id: "walled-garden-report",
+        title: "City & Guilds Walled Garden Report or EAL Learner History Report",
+        description: "This will need to support the claim you hold or held the relevant qualification",
+        acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+      },
+      {
+        id: "skills-scan-post-september-2023",
+        title: "Skills Scan (Post-September 2023)",
+        description: "Upload the post-September 2023 skills scan or equivalent evidence required for AM2E V1",
+        acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+      },
+    ];
+  }
+
+  return [
+    {
+      id: "experienced-worker-qualification-certificate",
+      title: "The Experienced Worker Qualification Certificate",
+      description: "Issued from your City & Guilds 2346 or 2347, 2357, or equivalent route",
+      acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+    },
+    {
+      id: "walled-garden-report",
+      title: "City & Guilds Walled Garden Report or EAL Learner History Report",
+      description: "This will need to support the claim you hold or held the relevant qualification",
+      acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+    },
+    {
+      id: "skills-scan-pre-september-2023",
+      title: "Skills Scan (Pre-Sept 2023)",
+      description: "This form dated September 2023 onwards will be replaced. You will need to request this from the JIB if you require it.",
+      acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+    },
+  ];
+}
+
+function buildEligibilityBranchingRules() {
+  return {
+    qualificationStep: {
+      id: "qualification-check",
+      question: "Have you completed or are you registered for any of the following qualifications?",
+      acceptedRouteIds: [
+        "ewa-city-and-guilds-2346",
+        "eal-603-5982-1",
+        "city-and-guilds-2357",
+        "eal-501-1065-b-electrotechnical",
+        "eal-501-1064-a-electrotechnical-maintenance",
+        "city-and-guilds-2356-certificate-nvq",
+        "city-and-guilds-2355-03-certificate-nvq",
+        "eal-100-4720-7-certificates-in-electrotechnical-services-nvq",
+        "city-and-guilds-2356-99-jib-mature-candidate-assessment-route",
+        "eal-ets3-jib-mature-candidate-assessment-route",
+        "city-and-guilds-2360-part-1-and-2",
+        "level-3-or-level-4-diplomas-in-electrotechnical-studies-and-practice",
+      ],
+    },
+    nvqRegistrationDateStep: {
+      id: "nvq-registration-date",
+      question: "When did you register for your NVQ?",
+      options: [
+        {
+          id: "before-3rd-september-2023",
+          label: "Before 3rd September 2023",
+          leadsToVariant: "am2e",
+        },
+        {
+          id: "after-september-2023",
+          label: "After September 2023",
+          leadsToVariant: "am2e-v1",
+        },
+      ],
+    },
+  };
+}
+
+function buildAm2eChecklistFlowPreview(course, variant) {
+  const checklistTemplates = buildChecklistTemplates();
+  const checklistTitle = variant === "am2e-v1" ? "AM2E V1 Checklist" : "AM2E Checklist";
+  const checklistSections = checklistTemplates.map((section) => ({
+    id: section.id,
+    key: section.key,
+    label: section.label,
+    title: section.title,
+    duration: section.duration,
+    summary: section.summary,
+    totalItems: section.items.length,
+    items: section.items.map((criterion, index) => ({
+      id: `${section.id}-item-${index + 1}`,
+      no: index + 1,
+      criterion,
+      options: {
+        knowledge: getChecklistOptionSet("knowledge"),
+        experience: getChecklistOptionSet("experience"),
+      },
+    })),
+  }));
+
+  return {
+    course: {
+      id: String(course._id),
+      title: course.title || "",
+      slug: course.slug || "",
+      qualification: course.qualification || "",
+      location: course.location || "",
+      schedule: course.schedule || "",
+      duration: course.duration || "",
+      price: course.price || 0,
+      currency: course.currency || "GBP",
+      thumbnailUrl: course.thumbnailUrl || course.galleryImages?.[0] || "",
+      galleryImages: course.galleryImages || [],
+    },
+    checklistVariant: variant,
+    eligibilityRouting: buildEligibilityBranchingRules(),
+    flow: {
+      steps: BOOKING_FLOW_STEPS.map((step, index) => ({
+        ...step,
+        order: index + 1,
+      })),
+      documents: {
+        title: "Upload Full Certificate",
+        subtitle: "For those who don't already hold AM2",
+        importantInformation:
+          "You must upload all required documents before proceeding.",
+        requirements: buildAm2eVariantDocumentRequirements(variant),
+      },
+      checklistSummary: {
+        title: checklistTitle,
+        subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+        overallCompletion: 0,
+        importantInformation: "Important Information",
+        notice:
+          "Complete all sections of the checklist. You can use the full checklist page for a detailed view.",
+      },
+      checklistSections,
+      signatures: {
+        candidate: {
+          supportedTypes: ["draw", "upload"],
+          uploadFields: ["file", "image", "signature", "candidateSignature"],
+        },
+        trainingProvider: {
+          fields: ["trainingProviderEmail", "trainingProviderName", "subject", "message"],
+        },
+      },
+      submit: {
+        title: "Review & Submit",
+        checks: [
+          "NET Candidate Registration Form",
+          checklistTitle,
+          "Candidate Signature",
+          "Training Provider Signature",
+        ],
+      },
+      reviewStates: [
+        { key: "submitted", label: "Application Submitted" },
+        { key: "under_review", label: "Under Review" },
+        { key: "approved", label: "Application Approved" },
+      ],
+      payment: {
+        title: "Proceed to Payment",
+        availableAfterApproval: true,
+      },
+      confirmed: {
+        title: "Booking Confirmed",
+      },
+    },
+    coverage: buildAm2eChecklistCoverageReport(variant),
+  };
+}
+
 function buildCourseSnapshot(course) {
   return {
     title: course.title,
@@ -584,7 +1096,9 @@ function buildSignaturePayload(payload, options = {}) {
   const signerName = normalizeString(payload.signerName || payload.name);
   const signerEmail = normalizeEmail(payload.signerEmail || payload.email);
   const signatureType = normalizeString(payload.signatureType || payload.type).toLowerCase();
-  const signatureData = normalizeString(payload.signatureData || payload.signatureImageUrl || payload.typedSignature);
+  const signatureData = normalizeString(
+    payload.signatureData || payload.signatureImageUrl || payload.typedSignature || payload.fileUrl
+  );
   const fileName = normalizeString(payload.fileName);
 
   if (signerName && signerName.length > 120) {
@@ -2105,9 +2619,7 @@ function isBookingChecklistComplete(booking) {
 function isBookingReadyForSubmit(booking) {
   return (
     isBookingDocumentsComplete(booking) &&
-    isBookingChecklistComplete(booking) &&
-    getCandidateSignatureStatus(booking) === "signed" &&
-    getTrainingProviderSignatureStatus(booking) === "signed"
+    isBookingChecklistComplete(booking)
   );
 }
 
@@ -3593,7 +4105,7 @@ async function submitMyBookingFlow(req, res, next) {
     if (!isBookingReadyForSubmit(bookingResult.value)) {
       return res.status(409).json({
         success: false,
-        message: "Complete documents, checklist, and signatures before submitting",
+        message: "Complete documents and checklist before submitting",
       });
     }
 
@@ -3901,6 +4413,161 @@ async function getMyBookingConfirmationScreen(req, res, next) {
   }
 }
 
+async function getMockRegistrationData(req, res, next) {
+  try {
+    const courseId = normalizeString(req.query?.courseId);
+    let course = null;
+
+    if (courseId) {
+      if (!mongoose.isValidObjectId(courseId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid courseId",
+        });
+      }
+
+      course = await Course.findById(courseId).select(
+        "_id title slug qualification location schedule"
+      );
+
+      if (!course) {
+        return res.status(404).json({
+          success: false,
+          message: "Course not found",
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Mock registration data generated successfully",
+      data: {
+        mockRegistration: buildMockRegistrationData(course),
+        pdfCoverage: buildPdfCoverageReport(),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getAm2ChecklistFlowByCourseId(req, res, next) {
+  try {
+    const courseId = normalizeString(req.query?.courseId);
+
+    if (!courseId) {
+      return res.status(400).json({
+        success: false,
+        message: "courseId is required",
+      });
+    }
+
+    if (!mongoose.isValidObjectId(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid courseId",
+      });
+    }
+
+    const course = await Course.findById(courseId).select(
+      "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
+    );
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "AM2 checklist flow fetched successfully",
+      data: buildAm2ChecklistFlowPreview(course),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getAm2eChecklistFlowByCourseId(req, res, next) {
+  try {
+    const courseId = normalizeString(req.query?.courseId);
+
+    if (!courseId) {
+      return res.status(400).json({
+        success: false,
+        message: "courseId is required",
+      });
+    }
+
+    if (!mongoose.isValidObjectId(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid courseId",
+      });
+    }
+
+    const course = await Course.findById(courseId).select(
+      "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
+    );
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "AM2E checklist flow fetched successfully",
+      data: buildAm2eChecklistFlowPreview(course, "am2e"),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getAm2eV1ChecklistFlowByCourseId(req, res, next) {
+  try {
+    const courseId = normalizeString(req.query?.courseId);
+
+    if (!courseId) {
+      return res.status(400).json({
+        success: false,
+        message: "courseId is required",
+      });
+    }
+
+    if (!mongoose.isValidObjectId(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid courseId",
+      });
+    }
+
+    const course = await Course.findById(courseId).select(
+      "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
+    );
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "AM2E V1 checklist flow fetched successfully",
+      data: buildAm2eChecklistFlowPreview(course, "am2e-v1"),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function submitMyBookingCandidateSignature(req, res, next) {
   try {
     const bookingResult = await findBookingForUser(req.params.id, req.user.id);
@@ -3913,6 +4580,13 @@ async function submitMyBookingCandidateSignature(req, res, next) {
 
     const signatureResult = buildSignaturePayload({
       ...(req.body || {}),
+      signatureData: req.uploadedSignatureFile?.fileUrl || req.body?.signatureData,
+      fileUrl: req.uploadedSignatureFile?.fileUrl || req.body?.fileUrl,
+      fileName: req.uploadedSignatureFile?.fileName || req.body?.fileName,
+      signatureType:
+        req.body?.signatureType ||
+        req.body?.type ||
+        (req.uploadedSignatureFile ? "upload" : undefined),
       signerName: req.body?.signerName || bookingResult.value.personalDetails?.fullName || "",
       signerEmail: req.body?.signerEmail || bookingResult.value.personalDetails?.email || "",
     });
@@ -4707,6 +5381,10 @@ async function updateAdminBooking(req, res, next) {
 
 module.exports = {
   createBooking,
+  getAm2ChecklistFlowByCourseId,
+  getAm2eChecklistFlowByCourseId,
+  getAm2eV1ChecklistFlowByCourseId,
+  getMockRegistrationData,
   getMyDashboard,
   listMyBookings,
   getMyBookingById,

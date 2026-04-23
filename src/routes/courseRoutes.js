@@ -16,10 +16,11 @@ const { requireAuth } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-router.use(requireAuth);
-
 router.get("/screen/catalog", getCourseCatalogScreen);
 router.get("/:slug/screen", getCourseDetailScreen);
+
+router.use(requireAuth);
+
 router.get("/:slug/book-now", getCourseBookNowModal);
 router.get("/:slug/registration-form", getCourseRegistrationForm);
 router.get("/:slug/registration-form/assessment", getCourseAssessmentRegistrationForm);

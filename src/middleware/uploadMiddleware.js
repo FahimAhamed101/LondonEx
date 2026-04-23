@@ -73,6 +73,31 @@ const bookingUploader = multer({
   },
 });
 
+const bookingSignatureUploader = multer({
+  storage: multer.diskStorage({
+    destination(req, file, callback) {
+      callback(null, bookingUploadDirectory);
+    },
+    filename(req, file, callback) {
+      const extension = path.extname(file.originalname || "").toLowerCase();
+      const safeExtension = extension || ".jpg";
+
+      callback(null, `booking-signature-${Date.now()}-${crypto.randomUUID()}${safeExtension}`);
+    },
+  }),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+  fileFilter(req, file, callback) {
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      callback(new Error("Only JPG, PNG, and WEBP image uploads are allowed"));
+      return;
+    }
+
+    callback(null, true);
+  },
+});
+
 const teamUploader = multer({
   storage: multer.diskStorage({
     destination(req, file, callback) {
@@ -136,6 +161,35 @@ function uploadBookingDocument(req, res, next) {
   });
 }
 
+function uploadBookingSignatureImage(req, res, next) {
+  bookingSignatureUploader.fields([
+    { name: "file", maxCount: 1 },
+    { name: "image", maxCount: 1 },
+    { name: "signature", maxCount: 1 },
+    { name: "candidateSignature", maxCount: 1 },
+  ])(req, res, (error) => {
+    if (error) {
+      return next(error);
+    }
+
+    const uploadedFile =
+      req.files?.file?.[0] ||
+      req.files?.image?.[0] ||
+      req.files?.signature?.[0] ||
+      req.files?.candidateSignature?.[0];
+
+    if (uploadedFile) {
+      req.uploadedSignatureFile = {
+        fileName: uploadedFile.originalname,
+        fileUrl: `/uploads/bookings/${uploadedFile.filename}`,
+        mimeType: uploadedFile.mimetype,
+      };
+    }
+
+    return next();
+  });
+}
+
 function uploadTeamImage(req, res, next) {
   teamUploader.fields([
     { name: "file", maxCount: 1 },
@@ -159,5 +213,6 @@ function uploadTeamImage(req, res, next) {
 module.exports = {
   uploadCourseImage,
   uploadBookingDocument,
+  uploadBookingSignatureImage,
   uploadTeamImage,
 };
