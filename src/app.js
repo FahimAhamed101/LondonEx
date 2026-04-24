@@ -27,7 +27,7 @@ const allowedOrigins = parseOriginList(
   process.env.CORS_ALLOWED_ORIGINS ||
     "http://localhost:3000,http://127.0.0.1:3000,https://london-essex-dashboard-ia9s.vercel.app,https://london-essex-br36.vercel.app"
 );
-
+console.log("allowed");
 const allowedOriginPatterns = [
   /^https:\/\/london-essex-dashboard(?:-[a-z0-9-]+)?\.vercel\.app$/i,
   /^https:\/\/london-essex(?:-[a-z0-9-]+)?\.vercel\.app$/i,
