@@ -25,11 +25,12 @@ function parseOriginList(value) {
 
 const allowedOrigins = parseOriginList(
   process.env.CORS_ALLOWED_ORIGINS ||
-    "http://localhost:3000,http://127.0.0.1:3000,https://london-essex-dashboard-ia9s.vercel.app"
+    "http://localhost:3000,http://127.0.0.1:3000,https://london-essex-dashboard-ia9s.vercel.app,https://london-essex-br36.vercel.app"
 );
 
 const allowedOriginPatterns = [
   /^https:\/\/london-essex-dashboard(?:-[a-z0-9-]+)?\.vercel\.app$/i,
+  /^https:\/\/london-essex(?:-[a-z0-9-]+)?\.vercel\.app$/i,
 ];
 
 function isOriginAllowed(origin) {
@@ -53,11 +54,18 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    return callback(null, false);
+    return callback(new Error(`CORS blocked for origin: ${origin || "unknown"}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning"],
+  allowedHeaders: [
+    "Accept",
+    "Authorization",
+    "Content-Type",
+    "Origin",
+    "X-Requested-With",
+    "ngrok-skip-browser-warning",
+  ],
   exposedHeaders: ["Content-Type", "Authorization", "ngrok-skip-browser-warning"],
   optionsSuccessStatus: 204,
 };
@@ -71,6 +79,7 @@ app.use((req, res, next) => {
 });
 
 app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 app.use("/api/stripe", stripeRoutes);
 app.use(express.json());
