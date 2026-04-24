@@ -11,7 +11,7 @@ const stripeRoutes = require("./routes/stripeRoutes");
 const errorHandler = require("./middleware/errorHandler");
 
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ||
-  "http://localhost:3000,http://127.0.0.1:3000")
+  "*")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
