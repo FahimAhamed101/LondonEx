@@ -29,6 +29,13 @@ function errorHandler(error, req, res, next) {
     });
   }
 
+  if (error && error.message === "Cloudinary is not configured on the server") {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+
   if (error && error.code === 11000) {
     const duplicateField = Object.keys(error.keyPattern || {})[0] || "field";
 

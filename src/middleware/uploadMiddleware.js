@@ -1,16 +1,6 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const path = require("node:path");
-
 const multer = require("multer");
 
-const uploadDirectory = path.join(process.cwd(), "uploads", "courses");
-const bookingUploadDirectory = path.join(process.cwd(), "uploads", "bookings");
-const teamUploadDirectory = path.join(process.cwd(), "uploads", "team");
-
-fs.mkdirSync(uploadDirectory, { recursive: true });
-fs.mkdirSync(bookingUploadDirectory, { recursive: true });
-fs.mkdirSync(teamUploadDirectory, { recursive: true });
+const { uploadBufferToCloudinary } = require("../utils/cloudinary");
 
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg"]);
 const allowedBookingMimeTypes = new Set([
@@ -21,20 +11,8 @@ const allowedBookingMimeTypes = new Set([
   "image/jpg",
 ]);
 
-const storage = multer.diskStorage({
-  destination(req, file, callback) {
-    callback(null, uploadDirectory);
-  },
-  filename(req, file, callback) {
-    const extension = path.extname(file.originalname || "").toLowerCase();
-    const safeExtension = extension || ".jpg";
-
-    callback(null, `course-${Date.now()}-${crypto.randomUUID()}${safeExtension}`);
-  },
-});
-
-const uploader = multer({
-  storage,
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024,
   },
@@ -48,18 +26,8 @@ const uploader = multer({
   },
 });
 
-const bookingUploader = multer({
-  storage: multer.diskStorage({
-    destination(req, file, callback) {
-      callback(null, bookingUploadDirectory);
-    },
-    filename(req, file, callback) {
-      const extension = path.extname(file.originalname || "").toLowerCase();
-      const safeExtension = extension || ".pdf";
-
-      callback(null, `booking-${Date.now()}-${crypto.randomUUID()}${safeExtension}`);
-    },
-  }),
+const bookingDocumentUpload = multer({
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024,
   },
@@ -73,140 +41,132 @@ const bookingUploader = multer({
   },
 });
 
-const bookingSignatureUploader = multer({
-  storage: multer.diskStorage({
-    destination(req, file, callback) {
-      callback(null, bookingUploadDirectory);
-    },
-    filename(req, file, callback) {
-      const extension = path.extname(file.originalname || "").toLowerCase();
-      const safeExtension = extension || ".jpg";
+async function uploadFileToCloudinary(file, folder, resourceType = "image") {
+  const result = await uploadBufferToCloudinary(file.buffer, {
+    folder,
+    resource_type: resourceType,
+    use_filename: true,
+    unique_filename: true,
+    overwrite: false,
+  });
 
-      callback(null, `booking-signature-${Date.now()}-${crypto.randomUUID()}${safeExtension}`);
-    },
-  }),
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-  },
-  fileFilter(req, file, callback) {
-    if (!allowedMimeTypes.has(file.mimetype)) {
-      callback(new Error("Only JPG, PNG, and WEBP image uploads are allowed"));
-      return;
-    }
-
-    callback(null, true);
-  },
-});
-
-const teamUploader = multer({
-  storage: multer.diskStorage({
-    destination(req, file, callback) {
-      callback(null, teamUploadDirectory);
-    },
-    filename(req, file, callback) {
-      const extension = path.extname(file.originalname || "").toLowerCase();
-      const safeExtension = extension || ".jpg";
-
-      callback(null, `team-${Date.now()}-${crypto.randomUUID()}${safeExtension}`);
-    },
-  }),
-  limits: {
-    fileSize: 5 * 1024 * 1024,
-  },
-  fileFilter(req, file, callback) {
-    if (!allowedMimeTypes.has(file.mimetype)) {
-      callback(new Error("Only JPG, PNG, and WEBP image uploads are allowed"));
-      return;
-    }
-
-    callback(null, true);
-  },
-});
+  return {
+    fileName: file.originalname,
+    fileUrl: result.secure_url,
+    mimeType: file.mimetype,
+  };
+}
 
 function uploadCourseImage(req, res, next) {
-  uploader.fields([
+  imageUpload.fields([
     { name: "file", maxCount: 1 },
     { name: "image", maxCount: 1 },
     { name: "thumbnail", maxCount: 1 },
-  ])(req, res, (error) => {
+  ])(req, res, async (error) => {
     if (error) {
       return next(error);
     }
 
-    const uploadedFile = req.files?.file?.[0] || req.files?.image?.[0] || req.files?.thumbnail?.[0];
+    try {
+      const uploadedFile = req.files?.file?.[0] || req.files?.image?.[0] || req.files?.thumbnail?.[0];
 
-    if (uploadedFile) {
-      req.uploadedImageUrl = `/uploads/courses/${uploadedFile.filename}`;
+      if (uploadedFile) {
+        const uploadResult = await uploadFileToCloudinary(
+          uploadedFile,
+          "londonessexelec/courses",
+          "image"
+        );
+        req.uploadedImageUrl = uploadResult.fileUrl;
+      }
+
+      return next();
+    } catch (uploadError) {
+      return next(uploadError);
     }
-
-    return next();
   });
 }
 
 function uploadBookingDocument(req, res, next) {
-  bookingUploader.single("file")(req, res, (error) => {
+  bookingDocumentUpload.single("file")(req, res, async (error) => {
     if (error) {
       return next(error);
     }
 
-    if (req.file) {
-      req.uploadedDocument = {
-        fileName: req.file.originalname,
-        fileUrl: `/uploads/bookings/${req.file.filename}`,
-        mimeType: req.file.mimetype,
-      };
-    }
+    try {
+      if (req.file) {
+        req.uploadedDocument = await uploadFileToCloudinary(
+          req.file,
+          "londonessexelec/bookings/documents",
+          "auto"
+        );
+      }
 
-    return next();
+      return next();
+    } catch (uploadError) {
+      return next(uploadError);
+    }
   });
 }
 
 function uploadBookingSignatureImage(req, res, next) {
-  bookingSignatureUploader.fields([
+  imageUpload.fields([
     { name: "file", maxCount: 1 },
     { name: "image", maxCount: 1 },
     { name: "signature", maxCount: 1 },
     { name: "candidateSignature", maxCount: 1 },
-  ])(req, res, (error) => {
+  ])(req, res, async (error) => {
     if (error) {
       return next(error);
     }
 
-    const uploadedFile =
-      req.files?.file?.[0] ||
-      req.files?.image?.[0] ||
-      req.files?.signature?.[0] ||
-      req.files?.candidateSignature?.[0];
+    try {
+      const uploadedFile =
+        req.files?.file?.[0] ||
+        req.files?.image?.[0] ||
+        req.files?.signature?.[0] ||
+        req.files?.candidateSignature?.[0];
 
-    if (uploadedFile) {
-      req.uploadedSignatureFile = {
-        fileName: uploadedFile.originalname,
-        fileUrl: `/uploads/bookings/${uploadedFile.filename}`,
-        mimeType: uploadedFile.mimetype,
-      };
+      if (uploadedFile) {
+        req.uploadedSignatureFile = await uploadFileToCloudinary(
+          uploadedFile,
+          "londonessexelec/bookings/signatures",
+          "image"
+        );
+      }
+
+      return next();
+    } catch (uploadError) {
+      return next(uploadError);
     }
-
-    return next();
   });
 }
 
 function uploadTeamImage(req, res, next) {
-  teamUploader.fields([
+  imageUpload.fields([
     { name: "file", maxCount: 1 },
     { name: "image", maxCount: 1 },
     { name: "photo", maxCount: 1 },
-  ])(req, res, (error) => {
+  ])(req, res, async (error) => {
     if (error) {
       return next(error);
     }
 
-    const uploadedFile = req.files?.file?.[0] || req.files?.image?.[0] || req.files?.photo?.[0];
+    try {
+      const uploadedFile = req.files?.file?.[0] || req.files?.image?.[0] || req.files?.photo?.[0];
 
-    if (uploadedFile) {
-      req.uploadedImageUrl = `/uploads/team/${uploadedFile.filename}`;
+      if (uploadedFile) {
+        const uploadResult = await uploadFileToCloudinary(
+          uploadedFile,
+          "londonessexelec/team",
+          "image"
+        );
+        req.uploadedImageUrl = uploadResult.fileUrl;
+      }
+
+      return next();
+    } catch (uploadError) {
+      return next(uploadError);
     }
-
-    return next();
   });
 }
 
