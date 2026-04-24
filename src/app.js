@@ -10,20 +10,46 @@ const teamRoutes = require("./routes/teamRoutes");
 const stripeRoutes = require("./routes/stripeRoutes");
 const errorHandler = require("./middleware/errorHandler");
 
-const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ||
-  "http://localhost:3000,http://127.0.0.1:3000,https://london-essex-dashboard-ia9s.vercel.app,https://london-essex-dashboard-ia9s.vercel.app")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+function normalizeOrigin(value) {
+  return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
+}
+
+function parseOriginList(value) {
+  return [...new Set(
+    String(value || "")
+      .split(",")
+      .map((origin) => normalizeOrigin(origin))
+      .filter(Boolean)
+  )];
+}
+
+const allowedOrigins = parseOriginList(
+  process.env.CORS_ALLOWED_ORIGINS ||
+    "http://localhost:3000,http://127.0.0.1:3000,https://london-essex-dashboard-ia9s.vercel.app"
+);
+
+const allowedOriginPatterns = [
+  /^https:\/\/london-essex-dashboard(?:-[a-z0-9-]+)?\.vercel\.app$/i,
+];
+
+function isOriginAllowed(origin) {
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (!normalizedOrigin) {
+    return true;
+  }
+
+  if (allowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  return allowedOriginPatterns.some((pattern) => pattern.test(normalizedOrigin));
+}
 
 const app = express();
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
 
