@@ -621,6 +621,49 @@ function buildEligibilityBranchingRules() {
   };
 }
 
+function findEligibilityOptionById(answerId) {
+  const normalizedAnswerId = normalizeString(answerId);
+  const options = buildEligibilityBranchingRules().nvqRegistrationDateStep.options;
+
+  return options.find((option) => option.id === normalizedAnswerId) || null;
+}
+
+function resolveAm2eChecklistVariant(requestedVariant, query = {}) {
+  const questionId = normalizeString(query.questionId || query.question || query.stepId);
+  const answerId = normalizeString(query.answerId || query.selectedAnswerId || query.optionId);
+  const selectedOption = findEligibilityOptionById(answerId);
+
+  if (!answerId) {
+    return {
+      variant: requestedVariant,
+      selectedQuestionId: questionId,
+      selectedAnswerId: "",
+      selectedAnswer: null,
+      routeSource: "default",
+    };
+  }
+
+  if (questionId && questionId !== "nvq-registration-date") {
+    return {
+      error: "questionId must be nvq-registration-date when answerId is provided",
+    };
+  }
+
+  if (!selectedOption) {
+    return {
+      error: "Invalid answerId for nvq-registration-date",
+    };
+  }
+
+  return {
+    variant: selectedOption.leadsToVariant,
+    selectedQuestionId: "nvq-registration-date",
+    selectedAnswerId: selectedOption.id,
+    selectedAnswer: selectedOption,
+    routeSource: "eligibility-answer",
+  };
+}
+
 function buildAm2eChecklistFlowPreview(course, variant) {
   const checklistTemplates = buildChecklistTemplates();
   const checklistTitle = variant === "am2e-v1" ? "AM2E V1 Checklist" : "AM2E Checklist";
@@ -658,6 +701,9 @@ function buildAm2eChecklistFlowPreview(course, variant) {
       galleryImages: course.galleryImages || [],
     },
     checklistVariant: variant,
+    resolvedFrom: {
+      routeVariant: variant,
+    },
     eligibilityRouting: buildEligibilityBranchingRules(),
     flow: {
       steps: BOOKING_FLOW_STEPS.map((step, index) => ({
@@ -713,6 +759,35 @@ function buildAm2eChecklistFlowPreview(course, variant) {
     },
     coverage: buildAm2eChecklistCoverageReport(variant),
   };
+}
+
+async function findChecklistCourseById(courseId) {
+  if (!courseId) {
+    return {
+      status: 400,
+      error: "courseId is required",
+    };
+  }
+
+  if (!mongoose.isValidObjectId(courseId)) {
+    return {
+      status: 400,
+      error: "Invalid courseId",
+    };
+  }
+
+  const course = await Course.findById(courseId).select(
+    "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
+  );
+
+  if (!course) {
+    return {
+      status: 404,
+      error: "Course not found",
+    };
+  }
+
+  return { course };
 }
 
 function buildCourseSnapshot(course) {
@@ -4493,36 +4568,35 @@ async function getAm2ChecklistFlowByCourseId(req, res, next) {
 async function getAm2eChecklistFlowByCourseId(req, res, next) {
   try {
     const courseId = normalizeString(req.query?.courseId);
+    const courseResult = await findChecklistCourseById(courseId);
+    if (courseResult.error) {
+      return res.status(courseResult.status).json({
+        success: false,
+        message: courseResult.error,
+      });
+    }
 
-    if (!courseId) {
+    const variantResult = resolveAm2eChecklistVariant("am2e", req.query || {});
+    if (variantResult.error) {
       return res.status(400).json({
         success: false,
-        message: "courseId is required",
+        message: variantResult.error,
       });
     }
 
-    if (!mongoose.isValidObjectId(courseId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid courseId",
-      });
-    }
-
-    const course = await Course.findById(courseId).select(
-      "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
-    );
-
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found",
-      });
-    }
+    const responseData = buildAm2eChecklistFlowPreview(courseResult.course, variantResult.variant);
+    responseData.resolvedFrom = {
+      routeVariant: "am2e",
+      selectedQuestionId: variantResult.selectedQuestionId,
+      selectedAnswerId: variantResult.selectedAnswerId,
+      selectedAnswerLabel: variantResult.selectedAnswer?.label || "",
+      routeSource: variantResult.routeSource,
+    };
 
     return res.status(200).json({
       success: true,
       message: "AM2E checklist flow fetched successfully",
-      data: buildAm2eChecklistFlowPreview(course, "am2e"),
+      data: responseData,
     });
   } catch (error) {
     return next(error);
@@ -4532,36 +4606,35 @@ async function getAm2eChecklistFlowByCourseId(req, res, next) {
 async function getAm2eV1ChecklistFlowByCourseId(req, res, next) {
   try {
     const courseId = normalizeString(req.query?.courseId);
+    const courseResult = await findChecklistCourseById(courseId);
+    if (courseResult.error) {
+      return res.status(courseResult.status).json({
+        success: false,
+        message: courseResult.error,
+      });
+    }
 
-    if (!courseId) {
+    const variantResult = resolveAm2eChecklistVariant("am2e-v1", req.query || {});
+    if (variantResult.error) {
       return res.status(400).json({
         success: false,
-        message: "courseId is required",
+        message: variantResult.error,
       });
     }
 
-    if (!mongoose.isValidObjectId(courseId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid courseId",
-      });
-    }
-
-    const course = await Course.findById(courseId).select(
-      "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
-    );
-
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found",
-      });
-    }
+    const responseData = buildAm2eChecklistFlowPreview(courseResult.course, variantResult.variant);
+    responseData.resolvedFrom = {
+      routeVariant: "am2e-v1",
+      selectedQuestionId: variantResult.selectedQuestionId,
+      selectedAnswerId: variantResult.selectedAnswerId,
+      selectedAnswerLabel: variantResult.selectedAnswer?.label || "",
+      routeSource: variantResult.routeSource,
+    };
 
     return res.status(200).json({
       success: true,
       message: "AM2E V1 checklist flow fetched successfully",
-      data: buildAm2eChecklistFlowPreview(course, "am2e-v1"),
+      data: responseData,
     });
   } catch (error) {
     return next(error);

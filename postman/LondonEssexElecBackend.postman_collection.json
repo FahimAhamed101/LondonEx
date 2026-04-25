@@ -1034,11 +1034,11 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "Returns the AM2E checklist flow definition for a given course. Use this when the user selects an eligible qualification and `Before 3rd September 2023` in the NVQ registration date step.\n\nAuth: none.\nMethod: GET\nQuery param: `courseId`\nSuccess: 200 OK",
+            "description": "Returns the AM2E checklist flow definition for a given course. Use this when the user selects an eligible qualification and `Before 3rd September 2023` in the NVQ registration date step.\n\nAuth: none.\nMethod: GET\nQuery params: `courseId`, `questionId`, `answerId`\n- `questionId` must be `nvq-registration-date`\n- `answerId` must be `before-3rd-september-2023`\nSuccess: 200 OK",
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/bookings/am2e-checklist-flow?courseId=6807c2b1f2b7e2a4d4c12345",
+              "raw": "{{baseUrl}}/api/bookings/am2e-checklist-flow?courseId=6807c2b1f2b7e2a4d4c12345&questionId=nvq-registration-date&answerId=before-3rd-september-2023",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1051,6 +1051,14 @@
                 {
                   "key": "courseId",
                   "value": "6807c2b1f2b7e2a4d4c12345"
+                },
+                {
+                  "key": "questionId",
+                  "value": "nvq-registration-date"
+                },
+                {
+                  "key": "answerId",
+                  "value": "before-3rd-september-2023"
                 }
               ]
             }
@@ -1063,11 +1071,11 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "Returns the AM2E V1 checklist flow definition for a given course. Use this when the user selects an eligible qualification and `After September 2023` in the NVQ registration date step.\n\nAuth: none.\nMethod: GET\nQuery param: `courseId`\nSuccess: 200 OK",
+            "description": "Returns the AM2E V1 checklist flow definition for a given course. Use this when the user selects an eligible qualification and `After September 2023` in the NVQ registration date step.\n\nAuth: none.\nMethod: GET\nQuery params: `courseId`, `questionId`, `answerId`\n- `questionId` must be `nvq-registration-date`\n- `answerId` must be `after-september-2023`\nSuccess: 200 OK",
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/bookings/am2e-v1-checklist-flow?courseId=6807c2b1f2b7e2a4d4c12345",
+              "raw": "{{baseUrl}}/api/bookings/am2e-v1-checklist-flow?courseId=6807c2b1f2b7e2a4d4c12345&questionId=nvq-registration-date&answerId=after-september-2023",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1080,6 +1088,14 @@
                 {
                   "key": "courseId",
                   "value": "6807c2b1f2b7e2a4d4c12345"
+                },
+                {
+                  "key": "questionId",
+                  "value": "nvq-registration-date"
+                },
+                {
+                  "key": "answerId",
+                  "value": "after-september-2023"
                 }
               ]
             }
