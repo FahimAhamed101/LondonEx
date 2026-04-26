@@ -1056,6 +1056,23 @@ function buildEligibilityCheck(payload, options = {}) {
   return { value: details };
 }
 
+function resolveChecklistRouteFromEligibility(booking) {
+  const nvqRegistrationDate = normalizeString(booking?.eligibilityCheck?.nvqRegistrationDate);
+  const courseId = String(booking?.course?._id || booking?.course || "");
+
+  const selectedOption = findEligibilityOptionById(nvqRegistrationDate);
+  const variant = selectedOption?.leadsToVariant || "am2e";
+
+  return {
+    routeKey: variant,
+    label: variant === "am2e-v1" ? "AM2E V1 Checklist" : "AM2E Checklist",
+    apiUrl:
+      variant === "am2e-v1"
+        ? `/api/bookings/am2e-v1-checklist-flow?courseId=${encodeURIComponent(courseId)}`
+        : `/api/bookings/am2e-checklist-flow?courseId=${encodeURIComponent(courseId)}`,
+  };
+}
+
 function buildAssessmentDetails(payload, options = {}) {
   const { partial = false } = options;
   const details = {};
@@ -4856,11 +4873,14 @@ async function saveMyBookingEligibility(req, res, next) {
     });
     await bookingResult.value.save();
 
+    const nextChecklistFlow = resolveChecklistRouteFromEligibility(bookingResult.value);
+
     return res.status(200).json({
       success: true,
       message: "Eligibility check saved successfully",
       data: {
         booking: mapBookingDetail(bookingResult.value),
+        nextChecklistFlow,
       },
     });
   } catch (error) {
