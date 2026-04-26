@@ -3,6 +3,13 @@ const mongoose = require("mongoose");
 
 const Booking = require("../models/Booking");
 const Course = require("../models/Course");
+const {
+  buildCandidateRegistrationForm,
+  buildAssessmentRegistrationForm,
+  buildEmployerRegistrationForm,
+  buildTrainingRegistrationForm,
+  buildPrivacyRegistrationForm,
+} = require("./courseController");
 const { getStripePublishableKey, isStripeConfigured } = require("../utils/stripe");
 const {
   createOrReuseStripePaymentIntentForBooking,
@@ -1057,8 +1064,17 @@ function buildEligibilityCheck(payload, options = {}) {
 }
 
 function resolveChecklistRouteFromEligibility(booking) {
+  const qualificationId = normalizeString(booking?.eligibilityCheck?.qualificationId);
   const nvqRegistrationDate = normalizeString(booking?.eligibilityCheck?.nvqRegistrationDate);
   const courseId = String(booking?.course?._id || booking?.course || "");
+
+  if (!qualificationId || !nvqRegistrationDate) {
+    return {
+      routeKey: "am2",
+      label: "AM2 Checklist",
+      apiUrl: `/api/bookings/am2-checklist-flow?courseId=${encodeURIComponent(courseId)}`,
+    };
+  }
 
   const selectedOption = findEligibilityOptionById(nvqRegistrationDate);
   const variant = selectedOption?.leadsToVariant || "am2e";
@@ -4571,34 +4587,50 @@ async function getMyBookingConfirmationScreen(req, res, next) {
 async function getMockRegistrationData(req, res, next) {
   try {
     const courseId = normalizeString(req.query?.courseId);
-    let course = null;
-
-    if (courseId) {
-      if (!mongoose.isValidObjectId(courseId)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid courseId",
-        });
-      }
-
-      course = await Course.findById(courseId).select(
-        "_id title slug qualification location schedule"
-      );
-
-      if (!course) {
-        return res.status(404).json({
-          success: false,
-          message: "Course not found",
-        });
-      }
+    if (!courseId) {
+      return res.status(400).json({
+        success: false,
+        message: "courseId is required",
+      });
     }
+
+    const courseResult = await findChecklistCourseById(courseId);
+    if (courseResult.error) {
+      return res.status(courseResult.status).json({
+        success: false,
+        message: courseResult.error,
+      });
+    }
+
+    const course = courseResult.course;
 
     return res.status(200).json({
       success: true,
-      message: "Mock registration data generated successfully",
+      message: "Registration flow data fetched successfully",
       data: {
-        mockRegistration: buildMockRegistrationData(course),
-        pdfCoverage: buildPdfCoverageReport(),
+        course: {
+          id: String(course._id),
+          title: course.title || "",
+          slug: course.slug || "",
+          qualification: course.qualification || "",
+          location: course.location || "",
+          schedule: course.schedule || "",
+          duration: course.duration || "",
+          price: course.price || 0,
+          currency: course.currency || "GBP",
+          thumbnailUrl: course.thumbnailUrl || course.galleryImages?.[0] || "",
+          galleryImages: course.galleryImages || [],
+        },
+        eligibility: {
+          apiUrl: `/api/courses/${course.slug}/book-now`,
+        },
+        registrationFlow: {
+          candidate: buildCandidateRegistrationForm(course),
+          assessment: buildAssessmentRegistrationForm(course),
+          employer: buildEmployerRegistrationForm(course),
+          training: buildTrainingRegistrationForm(course),
+          privacy: buildPrivacyRegistrationForm(course),
+        },
       },
     });
   } catch (error) {

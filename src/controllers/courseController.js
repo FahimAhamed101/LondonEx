@@ -2099,6 +2099,11 @@ async function updateCourse(req, res, next) {
 }
 
 module.exports = {
+  buildCandidateRegistrationForm,
+  buildAssessmentRegistrationForm,
+  buildEmployerRegistrationForm,
+  buildTrainingRegistrationForm,
+  buildPrivacyRegistrationForm,
   listCourses,
   getCourseDetails,
   getCourseCatalogScreen,
