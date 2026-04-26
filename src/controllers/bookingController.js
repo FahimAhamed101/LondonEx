@@ -2736,7 +2736,7 @@ function isBookingChecklistComplete(booking) {
 }
 
 function isBookingReadyForSubmit(booking) {
-  return isBookingChecklistComplete(booking);
+  return true;
 }
 
 function buildBookingFlowDocumentsScreen(booking) {
@@ -4239,13 +4239,6 @@ async function submitMyBookingFlow(req, res, next) {
       return res.status(bookingResult.status).json({
         success: false,
         message: bookingResult.error,
-      });
-    }
-
-    if (!isBookingReadyForSubmit(bookingResult.value)) {
-      return res.status(409).json({
-        success: false,
-        message: "Complete documents and checklist before submitting",
       });
     }
 
