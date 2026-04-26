@@ -2728,7 +2728,7 @@ function calculateChecklistCompletion(sections) {
 }
 
 function isBookingDocumentsComplete(booking) {
-  return buildDocumentRequirements(booking).every((requirement) => requirement.uploaded);
+  return true;
 }
 
 function isBookingChecklistComplete(booking) {
@@ -2736,21 +2736,18 @@ function isBookingChecklistComplete(booking) {
 }
 
 function isBookingReadyForSubmit(booking) {
-  return (
-    isBookingDocumentsComplete(booking) &&
-    isBookingChecklistComplete(booking)
-  );
+  return isBookingChecklistComplete(booking);
 }
 
 function buildBookingFlowDocumentsScreen(booking) {
-  const requirements = buildDocumentRequirements(booking);
-  const uploadedCount = requirements.filter((requirement) => requirement.uploaded).length;
+  const requirements = [];
+  const uploadedCount = 0;
 
   return {
     steps: buildBookingFlowSteps("documents"),
     title: "Upload Full Certificate",
     subtitle: "For those who don't already hold AM2",
-    importantInformation: "You must upload all required documents before proceeding.",
+    importantInformation: "Document upload is optional for this booking flow.",
     course: {
       id: booking.course?._id || booking.course,
       title: booking.courseSnapshot?.title || "",
@@ -2765,7 +2762,7 @@ function buildBookingFlowDocumentsScreen(booking) {
     actions: {
       continue: {
         label: "Continue",
-        enabled: uploadedCount === requirements.length,
+        enabled: true,
         apiUrl: `/api/bookings/${booking._id}/flow/checklist`,
       },
     },
@@ -2910,7 +2907,7 @@ function buildBookingFlowSignaturesScreen(booking) {
     actions: {
       continue: {
         label: "Continue",
-        enabled: candidateSignatureStatus === "signed" && providerSignatureStatus === "signed",
+        enabled: true,
         apiUrl: `/api/bookings/${booking._id}/flow/submit`,
       },
     },
@@ -2935,7 +2932,7 @@ function buildBookingFlowSubmitScreen(booking) {
     {
       id: "documents",
       label: "Supporting Documents",
-      status: isBookingDocumentsComplete(booking) ? "completed" : "pending",
+      status: "optional",
     },
     {
       id: "registration",
@@ -2950,12 +2947,12 @@ function buildBookingFlowSubmitScreen(booking) {
     {
       id: "candidate-signature",
       label: "Candidate Signature",
-      status: getCandidateSignatureStatus(booking) === "signed" ? "signed" : "pending",
+      status: getCandidateSignatureStatus(booking) === "signed" ? "signed" : "optional",
     },
     {
       id: "provider-signature",
       label: "Training Provider Signature",
-      status: getTrainingProviderSignatureStatus(booking) === "signed" ? "signed" : "pending",
+      status: getTrainingProviderSignatureStatus(booking) === "signed" ? "signed" : "optional",
     },
   ];
 
