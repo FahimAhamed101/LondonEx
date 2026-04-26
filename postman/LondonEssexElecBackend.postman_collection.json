@@ -36,6 +36,18 @@
     {
       "key": "trainingProviderSignatureLink",
       "value": ""
+    },
+    {
+      "key": "supportTicketId",
+      "value": ""
+    },
+    {
+      "key": "contactMessageId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
     }
   ],
   "auth": {
@@ -195,6 +207,79 @@
       ]
     },
     {
+      "name": "Contact",
+      "item": [
+        {
+          "name": "Contact Screen",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Returns frontend-ready data for the public `Get in Touch` page.\n\nAuth: none.\nMethod: GET\nSuccess: 200 OK\n\nResponse highlights:\n- `data.screen.title`: Main heading.\n- `data.screen.form.fields`: Input/select definitions for the form.\n- `data.screen.contactMethods`: Phone, fax, and email blocks.\n- `data.screen.form.submitAction`: Public submit API metadata.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/contact/screen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "contact",
+                "screen"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Contact Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "if (response && response.data && response.data.submission && response.data.submission.id) {",
+                  "  pm.collectionVariables.set('contactMessageId', response.data.submission.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Submits a public contact enquiry.\n\nAuth: none.\nMethod: POST\nContent-Type: application/json\nSuccess: 201 Created",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jenny Wilson\",\n  \"email\": \"jenny.wilson@example.com\",\n  \"phoneNumber\": \"+44 20 7946 0958\",\n  \"message\": \"Hi, I would like to know more about your AM2 assessment preparation courses.\",\n  \"howDidYouFindUs\": \"google\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/contact",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "contact"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Admin Team",
       "item": [
         {
@@ -344,6 +429,85 @@
                 "admin",
                 "team",
                 "{{teamMemberId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Contact",
+      "item": [
+        {
+          "name": "List Admin Contact Messages",
+          "request": {
+            "description": "Returns all public contact form submissions for admins.\n\nAuth: Bearer token required and must be an admin.\nMethod: GET\nSuccess: 200 OK\n\nOptional query params:\n- `status`: `new`, `read`, `resolved`",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/contact/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "contact",
+                "messages"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Admin Contact Message By Id",
+          "request": {
+            "description": "Returns one public contact message for admins.\n\nAuth: Bearer token required and must be an admin.\nMethod: GET\nPath param: `contactMessageId`\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/contact/messages/{{contactMessageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "contact",
+                "messages",
+                "{{contactMessageId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Admin Contact Message Status",
+          "request": {
+            "description": "Updates a public contact message status.\n\nAuth: Bearer token required and must be an admin.\nMethod: PATCH\nContent-Type: application/json\nPath param: `contactMessageId`\nSuccess: 200 OK\n\nAllowed values:\n- `new`\n- `read`\n- `resolved`",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/contact/messages/{{contactMessageId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "contact",
+                "messages",
+                "{{contactMessageId}}"
               ]
             }
           },
@@ -1669,6 +1833,566 @@
                 "api",
                 "stripe",
                 "webhook"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Support",
+      "item": [
+        {
+          "name": "Support Screen",
+          "request": {
+            "description": "Returns frontend-ready support page data for the logged-in user.\n\nAuth: Bearer token required.\nMethod: GET\nSuccess: 200 OK\n\nResponse highlights:\n- `data.screen.title`: Page title.\n- `data.screen.actions.newTicket`: API metadata for opening the new ticket modal.\n- `data.screen.sections.myTickets.tickets`: Ticket cards for the support page.\n- `data.screen.form.fields`: Form metadata for the new ticket modal.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/support",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "support"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List My Support Tickets",
+          "request": {
+            "description": "Returns the authenticated user's support tickets.\n\nAuth: Bearer token required.\nMethod: GET\nSuccess: 200 OK\n\nOptional query params:\n- `status`: `new`, `in_progress`, `resolved`\n- `priority`: `low`, `medium`, `high`\n- `category`: `bookings`, `payment`, `documents`, `checklist`, `signature`, `technical`, `general`\n- `search`: free text",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/support/tickets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "support",
+                "tickets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Support Ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "if (response && response.data && response.data.ticket && response.data.ticket.id) {",
+                  "  pm.collectionVariables.set('supportTicketId', response.data.ticket.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "description": "Creates a new support ticket from the support modal.\n\nAuth: Bearer token required.\nMethod: POST\nContent-Type: application/json\nSuccess: 201 Created",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Auto-Approve Bookings\",\n  \"category\": \"bookings\",\n  \"priority\": \"high\",\n  \"message\": \"I filled in Section 2 of the AM2 checklist yesterday but when I logged in today it was all blank again. I have tried on Chrome and Firefox.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/support/tickets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "support",
+                "tickets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Support Ticket By Id",
+          "request": {
+            "description": "Returns the full ticket detail with replies for the authenticated user.\n\nAuth: Bearer token required.\nMethod: GET\nPath param: `supportTicketId`\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/support/tickets/{{supportTicketId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "support",
+                "tickets",
+                "{{supportTicketId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reply To Support Ticket",
+          "request": {
+            "description": "Adds a new reply to the authenticated user's support ticket.\n\nAuth: Bearer token required.\nMethod: POST\nContent-Type: application/json\nPath param: `supportTicketId`\nSuccess: 200 OK",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hi, I am still seeing the same issue today. Could you check whether my draft answers are still saved on the backend?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/support/tickets/{{supportTicketId}}/replies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "support",
+                "tickets",
+                "{{supportTicketId}}",
+                "replies"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "Profile Settings Screen",
+          "request": {
+            "description": "Returns frontend-ready profile settings screen data for the authenticated user.\n\nAuth: Bearer token required.\nMethod: GET\nSuccess: 200 OK\n\nResponse highlights:\n- `data.screen.tabs`: Left navigation tabs.\n- `data.screen.section.avatar`: Profile photo state and actions.\n- `data.screen.section.form.fields`: Prefilled profile inputs.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "profile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile Settings",
+          "request": {
+            "description": "Updates user profile settings. You can send multipart form-data when uploading a new profile image.\n\nAuth: Bearer token required.\nMethod: PATCH\nPath: `/api/settings/profile`\nSuccess: 200 OK\n\nSupported form fields:\n- `name`\n- `email`\n- `phoneNumber`\n- `ntiNumber`\n- `file` or `image` or `photo` or `avatar` for profile photo upload",
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Jenny Wilson",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "jenny.wilson@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "phoneNumber",
+                  "value": "+44 20 7946 0958",
+                  "type": "text"
+                },
+                {
+                  "key": "ntiNumber",
+                  "value": "44 20 7946 0958",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "profile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Profile Photo",
+          "request": {
+            "description": "Removes the authenticated user's profile photo.\n\nAuth: Bearer token required.\nMethod: DELETE\nSuccess: 200 OK",
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/profile/photo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "profile",
+                "photo"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Notification Settings Screen",
+          "request": {
+            "description": "Returns frontend-ready notification settings screen data.\n\nAuth: Bearer token required.\nMethod: GET\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "notifications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Notification Settings",
+          "request": {
+            "description": "Updates email notification toggle settings.\n\nAuth: Bearer token required.\nMethod: PATCH\nContent-Type: application/json\nSuccess: 200 OK",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseUpdates\": true,\n  \"bookingConfirmations\": true,\n  \"checklistReminders\": true,\n  \"documentRequests\": true,\n  \"signatureRequests\": true,\n  \"weeklyProgressDigest\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "notifications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Security Settings Screen",
+          "request": {
+            "description": "Returns frontend-ready security settings screen data.\n\nAuth: Bearer token required.\nMethod: GET\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/security",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "security"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "description": "Updates the authenticated user's password.\n\nAuth: Bearer token required.\nMethod: POST\nContent-Type: application/json\nSuccess: 200 OK",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"UserPass123\",\n  \"newPassword\": \"UserPass456\",\n  \"confirmPassword\": \"UserPass456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/security/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "security",
+                "password"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List My Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "const firstNotification = response && response.data && response.data.notifications && response.data.notifications[0];",
+                  "if (firstNotification && firstNotification.id) {",
+                  "  pm.collectionVariables.set('notificationId', firstNotification.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "description": "Returns notifications for the authenticated user or admin.\n\nAuth: Bearer token required.\nMethod: GET\nSuccess: 200 OK\n\nThis endpoint is populated automatically when:\n- a candidate submits a booking for review -> admins get a notification\n- an admin approves a booking -> the candidate gets a notification",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Notification By Id",
+          "request": {
+            "description": "Returns a single notification for the authenticated user.\n\nAuth: Bearer token required.\nMethod: GET\nPath param: `notificationId`\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "{{notificationId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification As Read",
+          "request": {
+            "description": "Marks one notification as read.\n\nAuth: Bearer token required.\nMethod: PATCH\nPath param: `notificationId`\nSuccess: 200 OK",
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All Notifications As Read",
+          "request": {
+            "description": "Marks all notifications as read for the authenticated user.\n\nAuth: Bearer token required.\nMethod: PATCH\nSuccess: 200 OK",
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "read-all"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Support",
+      "item": [
+        {
+          "name": "Admin Support Screen",
+          "request": {
+            "description": "Returns frontend-ready admin support page data for the support screen shown in the dashboard.\n\nAuth: Bearer token required and must be an admin.\nMethod: GET\nSuccess: 200 OK\n\nResponse highlights:\n- `data.screen.title`: Page title.\n- `data.screen.search`: Search box metadata.\n- `data.screen.filters`: Filter drawer metadata.\n- `data.screen.sections.tickets.items`: Expanded ticket cards with replies, composer, and admin actions.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "support"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Admin Support Tickets",
+          "request": {
+            "description": "Returns support tickets for admins to review and manage.\n\nAuth: Bearer token required and must be an admin.\nMethod: GET\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "support",
+                "tickets"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Admin Support Ticket By Id",
+          "request": {
+            "description": "Returns full support ticket detail for admins, including requester information and admin actions.\n\nAuth: Bearer token required and must be an admin.\nMethod: GET\nPath param: `supportTicketId`\nSuccess: 200 OK",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets/{{supportTicketId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "support",
+                "tickets",
+                "{{supportTicketId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reply To Support Ticket As Admin",
+          "request": {
+            "description": "Adds an admin reply to a support ticket. If the ticket is `new`, the backend moves it to `in_progress` automatically.\n\nAuth: Bearer token required and must be an admin.\nMethod: POST\nContent-Type: application/json\nPath param: `supportTicketId`\nSuccess: 200 OK",
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hi James, we are looking into this now. Could you try logging out, clearing your browser cache, and signing in again?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets/{{supportTicketId}}/replies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "support",
+                "tickets",
+                "{{supportTicketId}}",
+                "replies"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Support Ticket Status",
+          "request": {
+            "description": "Updates a support ticket status.\n\nAuth: Bearer token required and must be an admin.\nMethod: PATCH\nContent-Type: application/json\nPath param: `supportTicketId`\nSuccess: 200 OK\n\nAllowed values:\n- `new`\n- `in_progress`\n- `resolved`",
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets/{{supportTicketId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "support",
+                "tickets",
+                "{{supportTicketId}}"
               ]
             }
           },

@@ -34,6 +34,11 @@ function ensureMailerConfig() {
   return config;
 }
 
+function isMailerReady() {
+  const config = getMailerConfig();
+  return Boolean(config.host && config.port && config.user && config.pass && config.fromEmail);
+}
+
 function getTransporter() {
   if (transporter) {
     return transporter;
@@ -160,7 +165,65 @@ async function sendTrainingProviderSignatureRequestEmail({
   });
 }
 
+async function sendContactFormNotificationEmail({
+  name,
+  email,
+  phoneNumber,
+  message,
+  howDidYouFindUs,
+}) {
+  const config = ensureMailerConfig();
+  const mailTransport = getTransporter();
+  const contactInbox = normalizeEnvValue(process.env.CONTACT_NOTIFICATION_EMAIL) || config.fromEmail;
+  const sourceLabel = howDidYouFindUs
+    ? {
+        google: "Google",
+        social_media: "Social Media",
+        friend_or_colleague: "Friend or Colleague",
+        returning_customer: "Returning Customer",
+        advertisement: "Advertisement",
+        other: "Other",
+      }[howDidYouFindUs] || howDidYouFindUs
+    : "Not provided";
+
+  const subject = `New contact enquiry from ${name || "website visitor"}`;
+  const text = [
+    "A new contact form enquiry has been submitted.",
+    "",
+    `Name: ${name}`,
+    `Email: ${email}`,
+    `Phone: ${phoneNumber}`,
+    `How did you find us?: ${sourceLabel}`,
+    "",
+    "Message:",
+    message,
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+      <p>A new contact form enquiry has been submitted.</p>
+      <p><strong>Name:</strong> ${name}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Phone:</strong> ${phoneNumber}</p>
+      <p><strong>How did you find us?:</strong> ${sourceLabel}</p>
+      <p><strong>Message:</strong></p>
+      <p style="white-space: pre-wrap;">${message}</p>
+    </div>
+  `;
+
+  return mailTransport.sendMail({
+    from: buildFromHeader(config.fromName, config.fromEmail),
+    to: contactInbox,
+    replyTo: email || undefined,
+    subject,
+    text,
+    html,
+  });
+}
+
 module.exports = {
+  isMailerReady,
   sendPasswordResetEmail,
   sendTrainingProviderSignatureRequestEmail,
+  sendContactFormNotificationEmail,
 };

@@ -10,6 +10,10 @@ const {
   syncBookingPaymentWithStripeByIntentId,
 } = require("../utils/stripeBooking");
 const { sendTrainingProviderSignatureRequestEmail } = require("../utils/mailer");
+const {
+  notifyAdminsOfBookingSubmission,
+  notifyUserOfBookingApproval,
+} = require("../utils/notifications");
 
 const BOOKING_STATUSES = ["pending_payment", "confirmed", "cancelled"];
 const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded"];
@@ -4248,9 +4252,14 @@ async function submitMyBookingFlow(req, res, next) {
       });
     }
 
+    const previousApplicationStatus = bookingResult.value.applicationStatus || "draft";
     bookingResult.value.applicationStatus = "submitted";
     bookingResult.value.submittedAt = bookingResult.value.submittedAt || new Date();
     await bookingResult.value.save();
+
+    if (previousApplicationStatus !== "submitted") {
+      await notifyAdminsOfBookingSubmission(bookingResult.value, req.user);
+    }
 
     return res.status(200).json({
       success: true,
@@ -5391,6 +5400,8 @@ async function updateAdminBooking(req, res, next) {
       });
     }
 
+    const previousApplicationStatus = booking.applicationStatus || "draft";
+
     if (status) {
       if (!BOOKING_STATUSES.includes(status)) {
         return res.status(400).json({
@@ -5503,6 +5514,11 @@ async function updateAdminBooking(req, res, next) {
     }
 
     await booking.save();
+
+    const nextApplicationStatus = booking.applicationStatus || "draft";
+    if (previousApplicationStatus !== "approved" && nextApplicationStatus === "approved") {
+      await notifyUserOfBookingApproval(booking, req.user);
+    }
 
     return res.status(200).json({
       success: true,

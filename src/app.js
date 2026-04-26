@@ -8,6 +8,10 @@ const courseRoutes = require("./routes/courseRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
 const teamRoutes = require("./routes/teamRoutes");
 const stripeRoutes = require("./routes/stripeRoutes");
+const supportRoutes = require("./routes/supportRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
+const contactRoutes = require("./routes/contactRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 const errorHandler = require("./middleware/errorHandler");
 
 function normalizeOrigin(value) {
@@ -95,9 +99,13 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/team", teamRoutes);
+app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

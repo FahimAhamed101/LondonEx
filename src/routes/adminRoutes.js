@@ -25,6 +25,18 @@ const {
   getAdminBookingById,
   updateAdminBooking,
 } = require("../controllers/bookingController");
+const {
+  getAdminSupportScreen,
+  listAdminSupportTickets,
+  getAdminSupportTicketById,
+  replyToAdminSupportTicket,
+  updateAdminSupportTicket,
+} = require("../controllers/supportController");
+const {
+  listAdminContactMessages,
+  getAdminContactMessageById,
+  updateAdminContactMessage,
+} = require("../controllers/contactController");
 const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { uploadCourseImage, uploadTeamImage } = require("../middleware/uploadMiddleware");
 
@@ -49,5 +61,13 @@ router.patch("/team/:id", uploadTeamImage, updateTeamMember);
 router.get("/bookings", listAdminBookings);
 router.get("/bookings/:id", getAdminBookingById);
 router.patch("/bookings/:id", updateAdminBooking);
+router.get("/support", getAdminSupportScreen);
+router.get("/support/tickets", listAdminSupportTickets);
+router.get("/support/tickets/:id", getAdminSupportTicketById);
+router.post("/support/tickets/:id/replies", replyToAdminSupportTicket);
+router.patch("/support/tickets/:id", updateAdminSupportTicket);
+router.get("/contact/messages", listAdminContactMessages);
+router.get("/contact/messages/:id", getAdminContactMessageById);
+router.patch("/contact/messages/:id", updateAdminContactMessage);
 
 module.exports = router;

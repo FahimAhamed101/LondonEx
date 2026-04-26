@@ -27,7 +27,9 @@ async function requireAuth(req, res, next) {
     }
 
     const payload = verifyAuthToken(token);
-    const user = await User.findById(payload.sub).select("name email role createdAt updatedAt");
+    const user = await User.findById(payload.sub).select(
+      "name email role phoneNumber ntiNumber profileImageUrl notificationSettings createdAt updatedAt"
+    );
 
     if (!user) {
       return res.status(401).json({
@@ -41,6 +43,10 @@ async function requireAuth(req, res, next) {
       name: user.name,
       email: user.email,
       role: user.role,
+      phoneNumber: user.phoneNumber,
+      ntiNumber: user.ntiNumber,
+      profileImageUrl: user.profileImageUrl,
+      notificationSettings: user.notificationSettings || {},
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

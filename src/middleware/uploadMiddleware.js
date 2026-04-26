@@ -170,9 +170,44 @@ function uploadTeamImage(req, res, next) {
   });
 }
 
+function uploadUserProfileImage(req, res, next) {
+  imageUpload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "image", maxCount: 1 },
+    { name: "photo", maxCount: 1 },
+    { name: "avatar", maxCount: 1 },
+  ])(req, res, async (error) => {
+    if (error) {
+      return next(error);
+    }
+
+    try {
+      const uploadedFile =
+        req.files?.file?.[0] ||
+        req.files?.image?.[0] ||
+        req.files?.photo?.[0] ||
+        req.files?.avatar?.[0];
+
+      if (uploadedFile) {
+        const uploadResult = await uploadFileToCloudinary(
+          uploadedFile,
+          "londonessexelec/users/profile",
+          "image"
+        );
+        req.uploadedImageUrl = uploadResult.fileUrl;
+      }
+
+      return next();
+    } catch (uploadError) {
+      return next(uploadError);
+    }
+  });
+}
+
 module.exports = {
   uploadCourseImage,
   uploadBookingDocument,
   uploadBookingSignatureImage,
   uploadTeamImage,
+  uploadUserProfileImage,
 };
