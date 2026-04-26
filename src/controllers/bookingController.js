@@ -2450,9 +2450,55 @@ function buildBookingFlowSteps(activeStepId) {
   }));
 }
 
+function normalizeDocumentTypeKey(value) {
+  return normalizeString(value)
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function getBookingDocumentsArray(booking) {
+  return Array.isArray(booking?.documents) ? booking.documents : [];
+}
+
+function mapUploadedBookingDocument(document, fallbackId) {
+  if (!document) {
+    return null;
+  }
+
+  return {
+    id: normalizeString(document.type) || fallbackId || "",
+    type: normalizeString(document.type),
+    label: normalizeString(document.label),
+    fileName: normalizeString(document.fileName),
+    fileUrl: normalizeString(document.fileUrl),
+    mimeType: normalizeString(document.mimeType),
+    uploadedAt: document.uploadedAt || null,
+  };
+}
+
+function findBookingDocumentByType(booking, ...documentTypes) {
+  const typeKeys = documentTypes
+    .map((documentType) => normalizeDocumentTypeKey(documentType))
+    .filter(Boolean);
+
+  if (typeKeys.length === 0) {
+    return null;
+  }
+
+  return (
+    getBookingDocumentsArray(booking).find((document) =>
+      typeKeys.includes(normalizeDocumentTypeKey(document?.type))
+    ) || null
+  );
+}
+
 function buildDocumentRequirements(booking) {
-  const documents = Array.isArray(booking.documents) ? booking.documents : [];
-  const uploadedCertificate = documents.find((document) => document.type === "full_certificate");
+  const uploadedCertificate = findBookingDocumentByType(
+    booking,
+    "full_certificate",
+    "full-certificate",
+    "full certificate"
+  );
 
   return [
     {
@@ -2460,13 +2506,7 @@ function buildDocumentRequirements(booking) {
       title: "Learner History Report or Walled Garden Report (City & Guilds)",
       description: "Requirements from your provider",
       uploaded: Boolean(uploadedCertificate),
-      document: uploadedCertificate
-        ? {
-            fileName: uploadedCertificate.fileName,
-            fileUrl: uploadedCertificate.fileUrl,
-            uploadedAt: uploadedCertificate.uploadedAt,
-          }
-        : null,
+      document: mapUploadedBookingDocument(uploadedCertificate, "full_certificate"),
       action: {
         label: uploadedCertificate ? "Replace" : "Upload",
         method: "POST",
@@ -2875,7 +2915,24 @@ function buildBookingFlowSignaturesScreen(booking) {
 
 function buildBookingFlowSubmitScreen(booking) {
   const readyForSubmit = isBookingReadyForSubmit(booking);
+  const documentRequirements = buildDocumentRequirements(booking);
+  const documentCompletion = {
+    uploadedCount: documentRequirements.filter((requirement) => requirement.uploaded).length,
+    totalRequired: documentRequirements.length,
+    percentage: documentRequirements.length
+      ? Math.round(
+          (documentRequirements.filter((requirement) => requirement.uploaded).length /
+            documentRequirements.length) *
+            100
+        )
+      : 0,
+  };
   const sections = [
+    {
+      id: "documents",
+      label: "Supporting Documents",
+      status: isBookingDocumentsComplete(booking) ? "completed" : "pending",
+    },
     {
       id: "registration",
       label: "NET Candidate Registration Form",
@@ -2904,6 +2961,13 @@ function buildBookingFlowSubmitScreen(booking) {
     subtitle: "Review your application before submitting to the admin for approval.",
     notice:
       "Once submitted, the admin will review your documents, checklist, and signatures. You'll be notified when your application is approved and you can proceed to payment.",
+    documents: {
+      requirements: documentRequirements,
+      completion: documentCompletion,
+      uploadedItems: getBookingDocumentsArray(booking).map((document) =>
+        mapUploadedBookingDocument(document)
+      ),
+    },
     sections,
     actions: {
       back: {
