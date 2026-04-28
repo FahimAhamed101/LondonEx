@@ -434,15 +434,9 @@ function buildAm2ChecklistFlowPreview(course) {
     duration: section.duration,
     summary: section.summary,
     totalItems: section.items.length,
-    items: section.items.map((criterion, index) => ({
-      id: `${section.id}-item-${index + 1}`,
-      no: index + 1,
-      criterion,
-      options: {
-        knowledge: getChecklistOptionSet("knowledge"),
-        experience: getChecklistOptionSet("experience"),
-      },
-    })),
+    items: section.items.map((criterion, index) =>
+      buildChecklistFlowItem(criterion, section.id, index)
+    ),
   }));
 
   return {
@@ -686,15 +680,9 @@ function buildAm2eChecklistFlowPreview(course, variant) {
     duration: section.duration,
     summary: section.summary,
     totalItems: section.items.length,
-    items: section.items.map((criterion, index) => ({
-      id: `${section.id}-item-${index + 1}`,
-      no: index + 1,
-      criterion,
-      options: {
-        knowledge: getChecklistOptionSet("knowledge"),
-        experience: getChecklistOptionSet("experience"),
-      },
-    })),
+    items: section.items.map((criterion, index) =>
+      buildChecklistFlowItem(criterion, section.id, index)
+    ),
   }));
 
   return {
@@ -2680,6 +2668,149 @@ function normalizeChecklistLevel(value) {
     : "";
 }
 
+function extractChecklistLevel(value) {
+  if (typeof value === "string") {
+    return normalizeChecklistLevel(value);
+  }
+
+  if (value && typeof value === "object") {
+    const booleanSelectedOption = getChecklistOptionSet("knowledge").find(
+      (option) => value[option.id] === true
+    );
+
+    if (booleanSelectedOption) {
+      return booleanSelectedOption.id;
+    }
+
+    return (
+      normalizeChecklistLevel(value.id) ||
+      normalizeChecklistLevel(value.label) ||
+      normalizeChecklistLevel(value.value) ||
+      normalizeChecklistLevel(value.level)
+    );
+  }
+
+  return "";
+}
+
+function normalizeChecklistItemNumber(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+
+  return null;
+}
+
+function buildChecklistTemplateLookups() {
+  const templates = buildChecklistTemplates();
+  const validItemIds = new Set();
+  const criterionToItemId = new Map();
+  const sectionKeyToSectionId = new Map();
+
+  templates.forEach((section) => {
+    sectionKeyToSectionId.set(normalizeString(section.key).toLowerCase(), section.id);
+    sectionKeyToSectionId.set(normalizeString(section.id).toLowerCase(), section.id);
+
+    section.items.forEach((criterion, index) => {
+      const itemId = `${section.id}-item-${index + 1}`;
+      validItemIds.add(itemId);
+      criterionToItemId.set(normalizeString(criterion).toLowerCase(), itemId);
+    });
+  });
+
+  return {
+    validItemIds,
+    criterionToItemId,
+    sectionKeyToSectionId,
+  };
+}
+
+function resolveChecklistResponseItemId(response, lookups, fallbackContext = {}) {
+  const directIds = [
+    response?.itemId,
+    response?.id,
+    response?.item?.id,
+  ]
+    .map((value) => normalizeString(value))
+    .filter(Boolean);
+
+  const matchedDirectId = directIds.find((itemId) => lookups.validItemIds.has(itemId));
+  if (matchedDirectId) {
+    return matchedDirectId;
+  }
+
+  const sectionId =
+    normalizeString(response?.sectionId) ||
+    normalizeString(response?.section?.id) ||
+    normalizeString(fallbackContext.sectionId);
+  const sectionKey =
+    normalizeString(response?.sectionKey) ||
+    normalizeString(response?.section?.key) ||
+    normalizeString(fallbackContext.sectionKey);
+  const resolvedSectionId =
+    sectionId ||
+    lookups.sectionKeyToSectionId.get(sectionKey.toLowerCase()) ||
+    "";
+  const itemNumber = normalizeChecklistItemNumber(
+    response?.no ?? response?.number ?? response?.itemNo ?? response?.index
+  );
+
+  if (resolvedSectionId && itemNumber) {
+    const sectionItemId = `${resolvedSectionId}-item-${itemNumber}`;
+    if (lookups.validItemIds.has(sectionItemId)) {
+      return sectionItemId;
+    }
+  }
+
+  const criterion =
+    normalizeString(response?.criterion) ||
+    normalizeString(response?.text) ||
+    normalizeString(response?.label) ||
+    normalizeString(response?.item?.criterion) ||
+    normalizeString(response?.item?.text);
+
+  if (criterion) {
+    return lookups.criterionToItemId.get(criterion.toLowerCase()) || "";
+  }
+
+  return "";
+}
+
+function collectChecklistPayloadResponses(body) {
+  const collected = [];
+
+  if (Array.isArray(body?.responses)) {
+    collected.push(...body.responses);
+  }
+
+  if (Array.isArray(body?.items)) {
+    collected.push(...body.items);
+  }
+
+  const sectionCollections = [
+    ...(Array.isArray(body?.sections) ? body.sections : []),
+    ...(Array.isArray(body?.checklistSections) ? body.checklistSections : []),
+    ...(body?.activeSection && Array.isArray(body.activeSection.items) ? [body.activeSection] : []),
+  ];
+
+  sectionCollections.forEach((section) => {
+    const items = Array.isArray(section?.items) ? section.items : [];
+    items.forEach((item) => {
+      collected.push({
+        ...item,
+        sectionId: normalizeString(item?.sectionId) || normalizeString(section?.id),
+        sectionKey: normalizeString(item?.sectionKey) || normalizeString(section?.key),
+      });
+    });
+  });
+
+  return collected;
+}
+
 function getChecklistResponseMap(booking) {
   const responses = Array.isArray(booking.checklistResponses) ? booking.checklistResponses : [];
   return new Map(
@@ -2713,6 +2844,53 @@ function getChecklistOptionSet(type) {
   ];
 }
 
+function buildChecklistBooleanOptionMap(selectedValue) {
+  const normalizedSelectedValue = normalizeChecklistLevel(selectedValue);
+
+  return getChecklistOptionSet("knowledge").reduce((accumulator, option) => {
+    accumulator[option.id] = option.id === normalizedSelectedValue;
+    return accumulator;
+  }, {});
+}
+
+function buildChecklistResponsesForClient(booking) {
+  return (Array.isArray(booking?.checklistResponses) ? booking.checklistResponses : [])
+    .map((response) => {
+      const itemId = normalizeString(response?.itemId);
+      const knowledgeLevel = normalizeChecklistLevel(response?.knowledgeLevel);
+      const experienceLevel = normalizeChecklistLevel(response?.experienceLevel);
+
+      if (!itemId) {
+        return null;
+      }
+
+      return {
+        itemId,
+        knowledgeLevel,
+        experienceLevel,
+        knowledge: buildChecklistBooleanOptionMap(knowledgeLevel),
+        experience: buildChecklistBooleanOptionMap(experienceLevel),
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildChecklistFlowItem(criterion, sectionId, index) {
+  return {
+    id: `${sectionId}-item-${index + 1}`,
+    no: index + 1,
+    criterion,
+    knowledgeLevel: "",
+    experienceLevel: "",
+    knowledge: buildChecklistBooleanOptionMap(""),
+    experience: buildChecklistBooleanOptionMap(""),
+    options: {
+      knowledge: getChecklistOptionSet("knowledge"),
+      experience: getChecklistOptionSet("experience"),
+    },
+  };
+}
+
 function buildChecklistSectionsForBooking(booking) {
   const templates = buildChecklistTemplates();
   const responseMap = getChecklistResponseMap(booking);
@@ -2732,6 +2910,8 @@ function buildChecklistSectionsForBooking(booking) {
         criterion,
         knowledgeLevel: response.knowledgeLevel,
         experienceLevel: response.experienceLevel,
+        knowledge: buildChecklistBooleanOptionMap(response.knowledgeLevel),
+        experience: buildChecklistBooleanOptionMap(response.experienceLevel),
         completed,
         options: {
           knowledge: getChecklistOptionSet("knowledge"),
@@ -3340,6 +3520,7 @@ function mapAdminBookingDetail(booking) {
     uploadedDocuments: buildBookingDocuments(booking, course),
     reviewDecision: buildBookingReviewDecision(booking),
     checklistSummary: buildBookingChecklistSummary(booking, course),
+    checklistResponses: buildChecklistResponsesForClient(booking),
   };
 }
 
@@ -4164,31 +4345,33 @@ async function saveMyBookingChecklist(req, res, next) {
       });
     }
 
-    const responses = Array.isArray(req.body.responses) ? req.body.responses : null;
-    if (!responses) {
+    const rawResponses = collectChecklistPayloadResponses(req.body);
+    if (rawResponses.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "responses must be an array",
+        message:
+          "Checklist payload must include responses, items, activeSection.items, sections[].items, or checklistSections[].items",
       });
     }
 
-    const templates = buildChecklistTemplates();
-    const validItemIds = new Set(
-      templates.flatMap((section) =>
-        section.items.map((criterion, index) => `${section.id}-item-${index + 1}`)
-      )
-    );
+    const checklistLookups = buildChecklistTemplateLookups();
 
-    const normalizedResponses = responses
+    const normalizedResponses = rawResponses
       .map((response) => ({
-        itemId: normalizeString(response.itemId),
-        knowledgeLevel: normalizeChecklistLevel(response.knowledgeLevel),
-        experienceLevel: normalizeChecklistLevel(response.experienceLevel),
+        itemId: resolveChecklistResponseItemId(response, checklistLookups),
+        knowledgeLevel:
+          extractChecklistLevel(response?.knowledgeLevel) ||
+          extractChecklistLevel(response?.knowledge) ||
+          extractChecklistLevel(response?.knowledgeOption),
+        experienceLevel:
+          extractChecklistLevel(response?.experienceLevel) ||
+          extractChecklistLevel(response?.experience) ||
+          extractChecklistLevel(response?.experienceOption),
       }))
       .filter(
         (response) =>
           response.itemId &&
-          validItemIds.has(response.itemId) &&
+          checklistLookups.validItemIds.has(response.itemId) &&
           (response.knowledgeLevel || response.experienceLevel)
       );
 
@@ -4200,7 +4383,22 @@ async function saveMyBookingChecklist(req, res, next) {
     );
 
     normalizedResponses.forEach((response) => {
-      mergedResponseMap.set(response.itemId, response);
+      const existingResponse = mergedResponseMap.get(response.itemId) || {
+        itemId: response.itemId,
+        knowledgeLevel: "",
+        experienceLevel: "",
+      };
+      const mergedResponse = {
+        itemId: response.itemId,
+        knowledgeLevel: response.knowledgeLevel || existingResponse.knowledgeLevel || "",
+        experienceLevel: response.experienceLevel || existingResponse.experienceLevel || "",
+      };
+
+      if (mergedResponse.knowledgeLevel || mergedResponse.experienceLevel) {
+        mergedResponseMap.set(response.itemId, mergedResponse);
+      } else {
+        mergedResponseMap.delete(response.itemId);
+      }
     });
 
     bookingResult.value.checklistResponses = Array.from(mergedResponseMap.values());

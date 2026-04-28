@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+:root {
+  /* BG Colors */
+  --color-bg-primary: #f8f8ff;
+  --color-bg-secondary: #f6fafd;
+  --color-bg-tertiary: #eaf4fb;
+
+  /* Primary Text Colors */
+  --color-text-primary: #33358e;
+  --color-text-secondary: #4a4a68;
+  --color-text-tertiary: #7a7a96;
+  --color-text-inverse: #ffffff;
+  --color-text-disabled: #b8b8c9;
+  --color-text: #111827;
+
+  /* Action Colors */
+  --color-action-primary: #0ba8dd;
+  --color-action-primary-hover: #0995c5;
+  --color-action-primary-disabled: #8ed7ee;
+  --color-action-secondary: #33358e;
+  --color-action-secondary-hover: #292b74;
+
+  /* Border Colors */
+  --color-border-primary: #d6e6f2;
+  --color-border-secondary: #e9eef4;
+  --color-border-focus: #0ba8dd;
+  --color-border-error: #ef4444;
+
+  /* Status Colors */
+  --color-status-success: #16a34a;
+  --color-status-success-subtle: #dcfce7;
+  --color-status-warning: #d97706;
+  --color-status-warning-subtle: #fef3c7;
+  --color-status-error: #dc2626;
+  --color-status-error-subtle: #fee2e2;
+  --color-status-info: #0284c7;
+
+  /* Icon Colors */
+  --color-icon-primary: #33358e;
+  --color-icon-secondary: #6b6b8d;
+  --color-icon-disabled: #bfc3d4;
+  --color-icon-inverse: #ffffff;
+
+  /* Dashboard Stat Icon Colors */
+  --color-stat-candidates-icon: #4a56a6;
+  --color-stat-candidates-bg: #eef0ff;
+  --color-stat-pending-icon: #ef9b10;
+  --color-stat-pending-bg: #fff5df;
+  --color-stat-approved-icon: #1aa65c;
+  --color-stat-approved-bg: #eaf9ef;
+  --color-stat-bookings-icon: #1ea6df;
+  --color-stat-bookings-bg: #eaf7ff;
+
+  /* Overlay Colors */
+  --color-overlay-primary: rgba(17, 24, 39, 0.08);
+  --color-overlay-secondary: rgba(18, 33, 77, 0.25);
+
+  /* Legacy aliases */
+  --font-mono-fallback:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text);
+  --panel: var(--color-text-inverse);
+  --muted: var(--color-text-secondary);
+  --line: var(--color-border-secondary);
+  --input: var(--color-bg-secondary);
+  --hero-deep: #16090d;
+  --hero-red: #b91923;
+  --hero-soft: #ff8b95;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-bg-primary: var(--color-bg-primary);
+  --color-bg-secondary: var(--color-bg-secondary);
+  --color-bg-tertiary: var(--color-bg-tertiary);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-inverse: var(--color-text-inverse);
+  --color-text-disabled: var(--color-text-disabled);
+  --color-text-default: var(--color-text);
+  --color-action-primary: var(--color-action-primary);
+  --color-action-primary-hover: var(--color-action-primary-hover);
+  --color-action-primary-disabled: var(--color-action-primary-disabled);
+  --color-action-secondary: var(--color-action-secondary);
+  --color-action-secondary-hover: var(--color-action-secondary-hover);
+  --color-border-primary: var(--color-border-primary);
+  --color-border-secondary: var(--color-border-secondary);
+  --color-border-focus: var(--color-border-focus);
+  --color-border-error: var(--color-border-error);
+  --color-status-success: var(--color-status-success);
+  --color-status-success-subtle: var(--color-status-success-subtle);
+  --color-status-warning: var(--color-status-warning);
+  --color-status-warning-subtle: var(--color-status-warning-subtle);
+  --color-status-error: var(--color-status-error);
+  --color-status-error-subtle: var(--color-status-error-subtle);
+  --color-status-info: var(--color-status-info);
+  --color-icon-primary: var(--color-icon-primary);
+  --color-icon-secondary: var(--color-icon-secondary);
+  --color-icon-disabled: var(--color-icon-disabled);
+  --color-icon-inverse: var(--color-icon-inverse);
+  --color-stat-candidates-icon: var(--color-stat-candidates-icon);
+  --color-stat-candidates-bg: var(--color-stat-candidates-bg);
+  --color-stat-pending-icon: var(--color-stat-pending-icon);
+  --color-stat-pending-bg: var(--color-stat-pending-bg);
+  --color-stat-approved-icon: var(--color-stat-approved-icon);
+  --color-stat-approved-bg: var(--color-stat-approved-bg);
+  --color-stat-bookings-icon: var(--color-stat-bookings-icon);
+  --color-stat-bookings-bg: var(--color-stat-bookings-bg);
+  --font-sans: var(--font-satoshi);
+  --font-mono: var(--font-mono-fallback);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  font-family: var(
+    --font-satoshi,
+    "Helvetica Neue", Helvetica, Arial, sans-serif
+  );
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  font-family: var(
+    --font-satoshi,
+    "Helvetica Neue", Helvetica, Arial, sans-serif
+  );
+  background:
+    radial-gradient(circle at top left, rgba(185, 25, 35, 0.12), transparent 28%),
+    linear-gradient(
+      180deg,
+      var(--color-bg-primary) 0%,
+      var(--color-bg-secondary) 100%
+    );
+  color: var(--foreground);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

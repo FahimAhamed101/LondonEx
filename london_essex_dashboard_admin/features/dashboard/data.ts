@@ -1,0 +1,781 @@
+import { createElement } from "react";
+import {
+  BriefcaseBusiness,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  CircleCheckBig,
+  Users,
+  UserRoundPlus,
+} from "lucide-react";
+import type {
+  DashboardStat,
+  ActivityEntry,
+  DashboardActionLink,
+  SubmissionEntry,
+  CandidateRow,
+  CandidateStat,
+  CandidateDetail,
+  CandidateChecklistSection,
+  CourseManagementRow,
+  BookingSubmissionRow,
+  BookingDetail,
+} from "@/types/dashboard";
+
+const StuckCandidatesIcon: CandidateStat["icon"] = (props) =>
+  createElement(
+    "svg",
+    {
+      ...props,
+      viewBox: "0 0 40 40",
+      fill: "none",
+      xmlns: "http://www.w3.org/2000/svg",
+    },
+    createElement("rect", {
+      width: "40",
+      height: "40",
+      rx: "16",
+      fill: "var(--color-stat-bookings-bg)",
+    }),
+    createElement("path", {
+      d: "M24.75 11.56V10C24.75 9.59 24.41 9.25 24 9.25C23.59 9.25 23.25 9.59 23.25 10V11.5H16.75V10C16.75 9.59 16.41 9.25 16 9.25C15.59 9.25 15.25 9.59 15.25 10V11.56C12.55 11.81 11.24 13.42 11.04 15.81C11.02 16.1 11.26 16.34 11.54 16.34H28.46C28.75 16.34 28.99 16.09 28.96 15.81C28.76 13.42 27.45 11.81 24.75 11.56Z",
+      fill: "var(--color-action-primary)",
+    }),
+    createElement("path", {
+      d: "M28 17.84H12C11.45 17.84 11 18.29 11 18.84V25C11 28 12.5 30 16 30H24C27.5 30 29 28 29 25V18.84C29 18.29 28.55 17.84 28 17.84ZM17.21 26.21C17.16 26.25 17.11 26.3 17.06 26.33C17 26.37 16.94 26.4 16.88 26.42C16.82 26.45 16.76 26.47 16.7 26.48C16.63 26.49 16.57 26.5 16.5 26.5C16.37 26.5 16.24 26.47 16.12 26.42C15.99 26.37 15.89 26.3 15.79 26.21C15.61 26.02 15.5 25.76 15.5 25.5C15.5 25.24 15.61 24.98 15.79 24.79C15.89 24.7 15.99 24.63 16.12 24.58C16.3 24.5 16.5 24.48 16.7 24.52C16.76 24.53 16.82 24.55 16.88 24.58C16.94 24.6 17 24.63 17.06 24.67C17.11 24.71 17.16 24.75 17.21 24.79C17.39 24.98 17.5 25.24 17.5 25.5C17.5 25.76 17.39 26.02 17.21 26.21ZM17.21 22.71C17.02 22.89 16.76 23 16.5 23C16.24 23 15.98 22.89 15.79 22.71C15.61 22.52 15.5 22.26 15.5 22C15.5 21.74 15.61 21.48 15.79 21.29C16.07 21.01 16.51 20.92 16.88 21.08C17.01 21.13 17.12 21.2 17.21 21.29C17.39 21.48 17.5 21.74 17.5 22C17.5 22.26 17.39 22.52 17.21 22.71ZM20.71 26.21C20.52 26.39 20.26 26.5 20 26.5C19.74 26.5 19.48 26.39 19.29 26.21C19.11 26.02 19 25.76 19 25.5C19 25.24 19.11 24.98 19.29 24.79C19.66 24.42 20.34 24.42 20.71 24.79C20.89 24.98 21 25.24 21 25.5C21 25.76 20.89 26.02 20.71 26.21ZM20.71 22.71C20.66 22.75 20.61 22.79 20.56 22.83C20.5 22.87 20.44 22.9 20.38 22.92C20.32 22.95 20.26 22.97 20.2 22.98C20.13 22.99 20.07 23 20 23C19.74 23 19.48 22.89 19.29 22.71C19.11 22.52 19 22.26 19 22C19 21.74 19.11 21.48 19.29 21.29C19.38 21.2 19.49 21.13 19.62 21.08C19.99 20.92 20.43 21.01 20.71 21.29C20.89 21.48 21 21.74 21 22C21 22.26 20.89 22.52 20.71 22.71ZM24.21 26.21C24.02 26.39 23.76 26.5 23.5 26.5C23.24 26.5 22.98 26.39 22.79 26.21C22.61 26.02 22.5 25.76 22.5 25.5C22.5 25.24 22.61 24.98 22.79 24.79C23.16 24.42 23.84 24.42 24.21 24.79C24.39 24.98 24.5 25.24 24.5 25.5C24.5 25.76 24.39 26.02 24.21 26.21ZM24.21 22.71C24.16 22.75 24.11 22.79 24.06 22.83C24 22.87 23.94 22.9 23.88 22.92C23.82 22.95 23.76 22.97 23.7 22.98C23.63 22.99 23.56 23 23.5 23C23.24 23 22.98 22.89 22.79 22.71C22.61 22.52 22.5 22.26 22.5 22C22.5 21.74 22.61 21.48 22.79 21.29C22.89 21.2 22.99 21.13 23.12 21.08C23.3 21 23.5 20.98 23.7 21.02C23.76 21.03 23.82 21.05 23.88 21.08C23.94 21.1 24 21.13 24.06 21.17C24.11 21.21 24.16 21.25 24.21 21.29C24.39 21.48 24.5 21.74 24.5 22C24.5 22.26 24.39 22.52 24.21 22.71Z",
+      fill: "var(--color-action-primary)",
+    }),
+  );
+
+export const dashboardStats: DashboardStat[] = [
+  {
+    value: "85,420",
+    label: "Total Candidates",
+    icon: Users,
+    iconColor: "text-[var(--color-stat-candidates-icon)]",
+    iconBg: "bg-[var(--color-stat-candidates-bg)]",
+  },
+  {
+    value: "5,420",
+    label: "Pending Reviews",
+    icon: ClipboardList,
+    iconColor: "text-[var(--color-stat-pending-icon)]",
+    iconBg: "bg-[var(--color-stat-pending-bg)]",
+  },
+  {
+    value: "85,420",
+    label: "Approved",
+    icon: CheckCircle2,
+    iconColor: "text-[var(--color-stat-approved-icon)]",
+    iconBg: "bg-[var(--color-stat-approved-bg)]",
+  },
+  {
+    value: "85,420",
+    label: "Course Bookings",
+    icon: CalendarDays,
+    iconColor: "text-[var(--color-stat-bookings-icon)]",
+    iconBg: "bg-[var(--color-stat-bookings-bg)]",
+  },
+];
+
+export const submissionRows: SubmissionEntry[] = [
+  {
+    initial: "J",
+    initialBg: "bg-[#10a56b]",
+    candidate: "Jayvion Simon",
+    submittedDate: "14 May 2025",
+    submittedTime: "10:25 am",
+    status: "Online",
+  },
+  {
+    initial: "L",
+    initialBg: "bg-[#8e3cf7]",
+    candidate: "Lucian Obrien",
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+    status: "Pending",
+  },
+  {
+    initial: "D",
+    initialBg: "bg-[#18acd6]",
+    candidate: "Deja Brady",
+    submittedDate: "12 May 2025",
+    submittedTime: "8:25 am",
+    status: "Pending",
+  },
+  {
+    initial: "L",
+    initialBg: "bg-[#ffaf11]",
+    candidate: "Lainey Davidson",
+    submittedDate: "09 May 2025",
+    submittedTime: "5:25 am",
+    status: "Approved",
+  },
+  {
+    initial: "R",
+    initialBg: "bg-[#ff6134]",
+    candidate: "Reece Chung",
+    submittedDate: "10 May 2025",
+    submittedTime: "6:25 am",
+    status: "Pending",
+  },
+  {
+    initial: "C",
+    initialBg: "bg-[#15add6]",
+    candidate: "Cristopher Cardenas",
+    submittedDate: "08 May 2025",
+    submittedTime: "4:25 am",
+    status: "Rejected",
+  },
+  {
+    initial: "M",
+    initialBg: "bg-[#25303b]",
+    candidate: "Melanie Noble",
+    submittedDate: "07 May 2025",
+    submittedTime: "3:25 am",
+    status: "Approved",
+  },
+  {
+    initial: "M",
+    initialBg: "bg-[#25303b]",
+    candidate: "Melanie Noble",
+    submittedDate: "07 May 2025",
+    submittedTime: "3:25 am",
+    status: "Approved",
+  },
+  {
+    initial: "C",
+    initialBg: "bg-[#15add6]",
+    candidate: "Cristopher Cardenas",
+    submittedDate: "08 May 2025",
+    submittedTime: "4:25 am",
+    status: "Rejected",
+  },
+  {
+    initial: "C",
+    initialBg: "bg-[#15add6]",
+    candidate: "Cristopher Cardenas",
+    submittedDate: "08 May 2025",
+    submittedTime: "4:25 am",
+    status: "Rejected",
+  },
+  {
+    initial: "M",
+    initialBg: "bg-[#25303b]",
+    candidate: "Melanie Noble",
+    submittedDate: "07 May 2025",
+    submittedTime: "3:25 am",
+    status: "Approved",
+  },
+  {
+    initial: "C",
+    initialBg: "bg-[#10a56b]",
+    candidate: "Chase Day",
+    submittedDate: "06 May 2025",
+    submittedTime: "2:25 am",
+    status: "Pending",
+  },
+];
+
+export const quickActions: DashboardActionLink[] = [
+  {
+    label: "Review Pending Checklists",
+    badge: "01",
+  },
+  {
+    label: "Manage Courses",
+  },
+  {
+    label: "View Bookings",
+  },
+];
+
+export const recentActivities: ActivityEntry[] = [
+  {
+    title: "Michael Johnson submitted checklist",
+    subtitle: "",
+    time: "2 minutes ago",
+    icon: UserRoundPlus,
+    iconColor: "text-[#18a6de]",
+    iconBg: "bg-[#eaf7ff]",
+  },
+  {
+    title: "Cell",
+    subtitle: "Caption",
+    time: "",
+    icon: BriefcaseBusiness,
+    iconColor: "text-[#ee9c16]",
+    iconBg: "bg-[#fff4df]",
+  },
+];
+
+export const candidateStats: CandidateStat[] = [
+  {
+    value: "420",
+    label: "Total Candidates",
+    icon: Users,
+    iconColor: "text-[var(--color-stat-candidates-icon)]",
+    iconBg: "bg-[var(--color-stat-candidates-bg)]",
+  },
+  {
+    value: "12",
+    label: "Stuck Candidates",
+    icon: StuckCandidatesIcon,
+    iconColor: "",
+    iconBg: "",
+  },
+  {
+    value: "20",
+    label: "Pending Reviews",
+    icon: ClipboardList,
+    iconColor: "text-[var(--color-stat-pending-icon)]",
+    iconBg: "bg-[var(--color-stat-pending-bg)]",
+  },
+  {
+    value: "85",
+    label: "Approved",
+    icon: CircleCheckBig,
+    iconColor: "text-[var(--color-stat-approved-icon)]",
+    iconBg: "bg-[var(--color-stat-approved-bg)]",
+  },
+];
+
+export const candidateCourses = [
+  "All Courses",
+  "AM2 Assessment Preparation",
+  "EV Charging Installation",
+];
+
+export const candidateRows: CandidateRow[] = [
+  {
+    id: "1",
+    initial: "L",
+    initialBg: "bg-[#8e3cf7]",
+    name: "Lucian Obrien",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 13.6,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "2",
+    initial: "H",
+    initialBg: "bg-[#187db5]",
+    name: "Harrison Stein",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 42.1,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "3",
+    initial: "R",
+    initialBg: "bg-[#ff6134]",
+    name: "Reece Chung",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 37.2,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "4",
+    initial: "L",
+    initialBg: "bg-[#ffaf11]",
+    name: "Lainey Davidson",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 18.5,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "5",
+    initial: "C",
+    initialBg: "bg-[#15add6]",
+    name: "Cristopher Cardenas",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 40.1,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "6",
+    initial: "M",
+    initialBg: "bg-[#25303b]",
+    name: "Melanie Noble",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 94.8,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "7",
+    initial: "S",
+    initialBg: "bg-[#10a56b]",
+    name: "Sienna Booker",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 55.3,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "8",
+    initial: "T",
+    initialBg: "bg-[#8f33f7]",
+    name: "Trenton Hayes",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 33.7,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "9",
+    initial: "V",
+    initialBg: "bg-[#18acd6]",
+    name: "Violet Harper",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 66.2,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "10",
+    initial: "N",
+    initialBg: "bg-[#0f6e98]",
+    name: "Nolan Becker",
+    candidateId: "123123",
+    course: "AM2 Assessment Preparation",
+    progress: 77.8,
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+  },
+  {
+    id: "11",
+    initial: "A",
+    initialBg: "bg-[#10a56b]",
+    name: "Ariana Fox",
+    candidateId: "123123",
+    course: "EV Charging Installation",
+    progress: 25.4,
+    submittedDate: "12 May 2025",
+    submittedTime: "3:10 pm",
+  },
+  {
+    id: "12",
+    initial: "J",
+    initialBg: "bg-[#ff6134]",
+    name: "Jordan Miles",
+    candidateId: "123123",
+    course: "EV Charging Installation",
+    progress: 82.3,
+    submittedDate: "12 May 2025",
+    submittedTime: "1:40 pm",
+  },
+];
+
+const checklistTemplate: CandidateChecklistSection[] = [
+  {
+    id: "section-a",
+    title: "Section A: Safe Isolation & Risk Assessment",
+    status: "Completed",
+    items: [
+      {
+        id: "1",
+        name: "Carry out and document an assessment of risk",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "2",
+        name: "Carry out safe isolation in the correct sequence",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+    ],
+  },
+  {
+    id: "section-b",
+    title: "Section A: Safe Isolation & Risk Assessment",
+    status: "Completed",
+    items: [
+      {
+        id: "1",
+        name: "Interpretation of specifications and technical data",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "2",
+        name: "Selection of protective devices",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "3",
+        name: "Install protective equipment, bonding",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "4",
+        name: "Project timeline update",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "5",
+        name: "Team skill assessment",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+    ],
+  },
+  {
+    id: "section-c",
+    title: "Section A: Safe Isolation & Risk Assessment",
+    status: "Completed",
+    items: [
+      {
+        id: "1",
+        name: "AM2 assessment preparation",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "2",
+        name: "IoT device programming",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "3",
+        name: "AI and machine learning",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "4",
+        name: "Blockchain development",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "5",
+        name: "Cybersecurity fundamentals",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+    ],
+  },
+  {
+    id: "section-d",
+    title: "Section A: Safe Isolation & Risk Assessment",
+    status: "Completed",
+    items: [
+      {
+        id: "1",
+        name: "AM2 assessment preparation",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "2",
+        name: "IoT device programming",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "3",
+        name: "AI and machine learning",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "4",
+        name: "Blockchain development",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+      {
+        id: "5",
+        name: "Cybersecurity fundamentals",
+        knowledge: "Adequate",
+        experience: "Adequate",
+      },
+    ],
+  },
+];
+
+export const candidateDetails: CandidateDetail[] = candidateRows.map((row) => ({
+  id: row.id,
+  candidateId: row.candidateId,
+  avatarLetter: row.initial,
+  avatarBg: row.initialBg,
+  name: row.name,
+  submittedOn: row.submittedDate,
+  reviewStatus: row.progress >= 80 ? "Approved" : "Pending Review",
+  email: `${row.name.toLowerCase().replaceAll(" ", ".")}@example.com`,
+  phone: "07700 900456",
+  niNumber: "PZ456789A",
+  verifications: [
+    {
+      label: "Candidates",
+      status: "Signed",
+    },
+    {
+      label: "Training Provider",
+      status: "Signed",
+    },
+  ],
+  documents: [
+    {
+      id: `${row.id}-document-1`,
+      title: "Photo_ID_Passport.pdf",
+      description: "Get notified when a candidate submits a support request.",
+    },
+    {
+      id: `${row.id}-document-2`,
+      title: "Photo_ID_Passport.pdf",
+      description: "Get notified when a candidate submits a support request.",
+    },
+    {
+      id: `${row.id}-document-3`,
+      title: "Photo_ID_Passport.pdf",
+      description: "Get notified when a candidate submits a support request.",
+    },
+  ],
+  checklistSections: checklistTemplate,
+}));
+
+export const courseManagementRows: CourseManagementRow[] = [
+  {
+    id: "course-1",
+    name: "AM2 Assessment Preparation",
+    price: "275.00",
+    date: "8/11/2026",
+    duration: "10 Weeks",
+    location: "Location 4",
+  },
+  {
+    id: "course-2",
+    name: "IoT Device Programming",
+    price: "295.00",
+    date: "15/12/2026",
+    duration: "8 Weeks",
+    location: "Central Park",
+  },
+  {
+    id: "course-3",
+    name: "AI and Machine Learning",
+    price: "330.00",
+    date: "20/1/2027",
+    duration: "14 Weeks",
+    location: "Downtown Plaza",
+  },
+  {
+    id: "course-4",
+    name: "Blockchain Development",
+    price: "320.00",
+    date: "1/3/2027",
+    duration: "10 Weeks",
+    location: "Riverside Walk",
+  },
+  {
+    id: "course-5",
+    name: "Cybersecurity Fundamentals",
+    price: "280.00",
+    date: "10/4/2027",
+    duration: "9 Weeks",
+    location: "Hilltop View",
+  },
+];
+
+export const courseSelectOptions = [
+  "AM2 Assessment Preparation",
+  "AI Courses",
+  "EV Charging Installation",
+];
+
+export const bookingSubmissionRows: BookingSubmissionRow[] = [
+  {
+    id: "booking-1",
+    candidateId: "1",
+    initial: "J",
+    initialBg: "bg-[#10a56b]",
+    candidate: "Jayvion Simon",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "14 May 2025",
+    submittedTime: "10:25 am",
+    status: "Online",
+  },
+  {
+    id: "booking-2",
+    candidateId: "2",
+    initial: "L",
+    initialBg: "bg-[#8e3cf7]",
+    candidate: "Lucian Obrien",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "13 May 2025",
+    submittedTime: "9:25 am",
+    status: "Pending",
+  },
+  {
+    id: "booking-3",
+    candidateId: "3",
+    initial: "D",
+    initialBg: "bg-[#18acd6]",
+    candidate: "Deja Brady",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "12 May 2025",
+    submittedTime: "8:25 am",
+    status: "Pending",
+  },
+  {
+    id: "booking-4",
+    candidateId: "4",
+    initial: "L",
+    initialBg: "bg-[#ffaf11]",
+    candidate: "Lainey Davidson",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "09 May 2025",
+    submittedTime: "5:25 am",
+    status: "Approved",
+  },
+  {
+    id: "booking-5",
+    candidateId: "5",
+    initial: "R",
+    initialBg: "bg-[#ff6134]",
+    candidate: "Reece Chung",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "10 May 2025",
+    submittedTime: "6:25 am",
+    status: "Pending",
+  },
+  {
+    id: "booking-6",
+    candidateId: "6",
+    initial: "C",
+    initialBg: "bg-[#15add6]",
+    candidate: "Cristopher Cardenas",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "08 May 2025",
+    submittedTime: "4:25 am",
+    status: "Rejected",
+  },
+  {
+    id: "booking-7",
+    candidateId: "6",
+    initial: "M",
+    initialBg: "bg-[#25303b]",
+    candidate: "Melanie Noble",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "07 May 2025",
+    submittedTime: "3:25 am",
+    status: "Approved",
+  },
+  {
+    id: "booking-8",
+    candidateId: "11",
+    initial: "A",
+    initialBg: "bg-[#1f2937]",
+    candidate: "Aaliyah Knox",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "05 May 2025",
+    submittedTime: "1:15 am",
+    status: "Approved",
+  },
+  {
+    id: "booking-9",
+    candidateId: "12",
+    initial: "E",
+    initialBg: "bg-[#18acd6]",
+    candidate: "Elias Montgomery",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "04 May 2025",
+    submittedTime: "12:45 am",
+    status: "Rejected",
+  },
+  {
+    id: "booking-10",
+    candidateId: "7",
+    initial: "S",
+    initialBg: "bg-[#15add6]",
+    candidate: "Sienna Patel",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "03 May 2025",
+    submittedTime: "11:30 pm",
+    status: "Rejected",
+  },
+  {
+    id: "booking-11",
+    candidateId: "12",
+    initial: "C",
+    initialBg: "bg-[#10a56b]",
+    candidate: "Chase Day",
+    enrolledCourse: "AM2 Assessment Preparation",
+    submittedDate: "06 May 2025",
+    submittedTime: "2:25 am",
+    status: "Pending",
+  },
+];
+
+export const bookingDetails: BookingDetail[] = bookingSubmissionRows.map(
+  (row, index) => ({
+    id: row.id,
+    avatarLetter: row.initial,
+    avatarBg: `${row.initialBg} text-white`,
+    name: row.candidate,
+    submittedOn: row.submittedDate,
+    bookingStatus:
+      row.status === "Approved"
+        ? "Completed"
+        : row.status === "Pending"
+          ? "Awaiting Review"
+          : row.status === "Rejected"
+            ? "Declined"
+            : "In Progress",
+    email: `${row.candidate.toLowerCase().replaceAll(" ", ".")}@example.com`,
+    phone: "07700 900456",
+    niNumber: `PZ45678${String(index).padStart(2, "0")}A`,
+    verifications: [
+      {
+        label: "Candidates",
+        status: row.status === "Online" ? "Signed" : "Not Signed",
+      },
+      {
+        label: "Training Provider",
+        status:
+          row.status === "Approved" || row.status === "Online"
+            ? "Signed"
+            : "Not Signed",
+      },
+    ],
+    documents: [
+      {
+        id: `${row.id}-document-1`,
+        title: "Photo_ID_Passport.pdf",
+        description: "Candidate proof of identity submitted with booking.",
+      },
+      {
+        id: `${row.id}-document-2`,
+        title: "Proof_of_Address.pdf",
+        description: "Proof of address uploaded for verification.",
+      },
+      {
+        id: `${row.id}-document-3`,
+        title: "Enrollment_Form.pdf",
+        description: "Signed course enrollment form for admin review.",
+      },
+    ],
+    checklistSections: checklistTemplate,
+  }),
+);
