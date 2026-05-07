@@ -425,7 +425,8 @@ function buildAm2ChecklistFlowCoverageReport() {
 }
 
 function buildAm2ChecklistFlowPreview(course) {
-  const checklistTemplates = buildChecklistTemplates();
+  const checklistMetadata = getChecklistVariantMetadata("am2");
+  const checklistTemplates = buildChecklistTemplates("am2");
   const checklistSections = checklistTemplates.map((section) => ({
     id: section.id,
     key: section.key,
@@ -434,8 +435,8 @@ function buildAm2ChecklistFlowPreview(course) {
     duration: section.duration,
     summary: section.summary,
     totalItems: section.items.length,
-    items: section.items.map((criterion, index) =>
-      buildChecklistFlowItem(criterion, section.id, index)
+    items: section.items.map((item, index) =>
+      buildChecklistFlowItem(item, section.id, index)
     ),
   }));
 
@@ -472,8 +473,9 @@ function buildAm2ChecklistFlowPreview(course) {
         ],
       },
       checklistSummary: {
-        title: "AM2 Checklist",
-        subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+        title: checklistMetadata.title,
+        subtitle: checklistMetadata.subtitle,
+        templateId: checklistMetadata.templateId,
         overallCompletion: 0,
         importantInformation: "Important Information",
         notice:
@@ -493,7 +495,7 @@ function buildAm2ChecklistFlowPreview(course) {
         title: "Review & Submit",
         checks: [
           "NET Candidate Registration Form",
-          "AM2 Checklist",
+          checklistMetadata.title,
           "Candidate Signature",
           "Training Provider Signature",
         ],
@@ -516,6 +518,37 @@ function buildAm2ChecklistFlowPreview(course) {
 }
 
 function buildAm2eChecklistCoverageReport(variant) {
+  if (variant === "am2e") {
+    return {
+      checklistCoverage: {
+        matched: [
+          "AM2E Full Checklist from the NET 03.26 PDF",
+          "Section A1 with 2 checklist items",
+          "Sections A2-A6 with 21 checklist items",
+          "Section B with 13 checklist items",
+          "Section C with 3 checklist items",
+          "Section D with 5 checklist items",
+          "Section E with 4 checklist items",
+          "Knowledge level options: Extensive, Adequate, Limited, Unsure",
+          "Experience level options: Extensive, Adequate, Limited, Unsure",
+          "Eligibility branch uses qualification selection plus NVQ registration date",
+        ],
+        missingFields: [],
+        mismatches: [
+          {
+            field: "eligibility branch persistence",
+            status: "backend_preview_only",
+            note:
+              "These endpoints return the checklist variant definition by course and branch rule, but they do not yet persist the chosen branch onto a booking record automatically.",
+          },
+        ],
+        notes: [
+          "The AM2E route selected by before-3rd-september-2023 now returns the full AM2E checklist questions from the provided NET PDF.",
+        ],
+      },
+    };
+  }
+
   return {
     checklistCoverage: {
       matched: [
@@ -670,8 +703,8 @@ function resolveAm2eChecklistVariant(requestedVariant, query = {}) {
 }
 
 function buildAm2eChecklistFlowPreview(course, variant) {
-  const checklistTemplates = buildChecklistTemplates();
-  const checklistTitle = variant === "am2e-v1" ? "AM2E V1 Checklist" : "AM2E Checklist";
+  const checklistMetadata = getChecklistVariantMetadata(variant);
+  const checklistTemplates = buildChecklistTemplates(variant);
   const checklistSections = checklistTemplates.map((section) => ({
     id: section.id,
     key: section.key,
@@ -680,8 +713,8 @@ function buildAm2eChecklistFlowPreview(course, variant) {
     duration: section.duration,
     summary: section.summary,
     totalItems: section.items.length,
-    items: section.items.map((criterion, index) =>
-      buildChecklistFlowItem(criterion, section.id, index)
+    items: section.items.map((item, index) =>
+      buildChecklistFlowItem(item, section.id, index)
     ),
   }));
 
@@ -717,8 +750,9 @@ function buildAm2eChecklistFlowPreview(course, variant) {
         requirements: buildAm2eVariantDocumentRequirements(variant),
       },
       checklistSummary: {
-        title: checklistTitle,
-        subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+        title: checklistMetadata.title,
+        subtitle: checklistMetadata.subtitle,
+        templateId: checklistMetadata.templateId,
         overallCompletion: 0,
         importantInformation: "Important Information",
         notice:
@@ -738,7 +772,7 @@ function buildAm2eChecklistFlowPreview(course, variant) {
         title: "Review & Submit",
         checks: [
           "NET Candidate Registration Form",
-          checklistTitle,
+          checklistMetadata.title,
           "Candidate Signature",
           "Training Provider Signature",
         ],
@@ -1069,7 +1103,7 @@ function resolveChecklistRouteFromEligibility(booking) {
 
   return {
     routeKey: variant,
-    label: variant === "am2e-v1" ? "AM2E V1 Checklist" : "AM2E Checklist",
+    label: getChecklistVariantMetadata(variant).title,
     apiUrl:
       variant === "am2e-v1"
         ? `/api/bookings/am2e-v1-checklist-flow?courseId=${encodeURIComponent(courseId)}`
@@ -2541,7 +2575,37 @@ function buildDocumentRequirements(booking) {
   ];
 }
 
-function buildChecklistTemplates() {
+function getChecklistVariantMetadata(variant = "am2") {
+  if (variant === "am2e") {
+    return {
+      variant: "am2e",
+      templateId: "net-am2e-full-candidate-checklist",
+      title: "AM2E Full Checklist",
+      subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+      description: "Complete your AM2E full checklist.",
+    };
+  }
+
+  if (variant === "am2e-v1") {
+    return {
+      variant: "am2e-v1",
+      templateId: "am2e-v1-checklist",
+      title: "AM2E V1 Checklist",
+      subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+      description: "Complete your AM2E V1 checklist.",
+    };
+  }
+
+  return {
+    variant: "am2",
+    templateId: "am2-checklist",
+    title: "AM2 Checklist",
+    subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+    description: "Complete your AM2 checklist.",
+  };
+}
+
+function buildAm2ChecklistTemplates() {
   return [
     {
       id: "section-a1",
@@ -2659,6 +2723,300 @@ function buildChecklistTemplates() {
   ];
 }
 
+function buildAm2eFullChecklistTemplates() {
+  return [
+    {
+      id: "am2e-section-a1",
+      key: "A1",
+      label: "Section A1",
+      title: "Section A1: Safe Isolation and Risk Assessment (45 mins)",
+      duration: "45 mins",
+      summary:
+        "To demonstrate occupational competence candidates will be expected to:",
+      items: [
+        {
+          id: "am2e-a1-1",
+          text: "Carry out and document an assessment of risk",
+        },
+        {
+          id: "am2e-a1-2",
+          text: "Carry out safe isolation in the correct sequence",
+        },
+      ],
+    },
+    {
+      id: "am2e-section-a2-a6",
+      key: "A2-A6",
+      label: "Sections A2-A6",
+      title: "Sections A2-A6: Composite Installation (10 hours)",
+      duration: "10 hours",
+      summary:
+        "This section has areas where candidates will need to demonstrate occupational competence in accordance with statutory and non-statutory regulations and approved industry working practices.",
+      items: [
+        {
+          id: "am2e-a2-1",
+          text: "Interpretation of specifications and technical data",
+        },
+        {
+          id: "am2e-a2-2",
+          text: "Selection of protective devices",
+        },
+        {
+          id: "am2e-a2-3",
+          text: "Install protective equipotential bonding",
+        },
+        {
+          id: "am2e-a2-4",
+          text: "Install and terminate PVC singles cable",
+        },
+        {
+          id: "am2e-a2-5",
+          text: "Install and terminate PVC/PVC multi-core & cpc cable",
+        },
+        {
+          id: "am2e-a2-6",
+          text: "Install and terminate SY multi-flex cable",
+        },
+        {
+          id: "am2e-a2-7",
+          text: "Install and terminate heat-resistant flex",
+        },
+        {
+          id: "am2e-a2-8",
+          text: "Install and terminate XLPE SWA",
+        },
+        {
+          id: "am2e-a2-9",
+          text: "Install and terminate data-cable",
+        },
+        {
+          id: "am2e-a2-10",
+          text: "Install and terminate FP200 type cable",
+        },
+        {
+          id: "am2e-a2-11",
+          text: "Forming and install 20mm metal conduit",
+        },
+        {
+          id: "am2e-a2-12",
+          text: "Forming and installing 20mm PVC conduit",
+        },
+        {
+          id: "am2e-a2-13",
+          text: "Install protective devices in a TP&N distribution board",
+        },
+        {
+          id: "am2e-a2-14",
+          text: "Install a two-way and intermediate lighting circuit in PVC/PVC multi-core cable",
+        },
+        {
+          id: "am2e-a2-15",
+          text: "Install a BS 1363 13A socket outlet ring circuit in PVC singles cable",
+        },
+        {
+          id: "am2e-a2-16",
+          text: "Install a carbon monoxide detector safety service circuit in FP200 type cable",
+        },
+        {
+          id: "am2e-a2-17",
+          text: "Install data outlets circuit in Cat. 5 cable",
+        },
+        {
+          id: "am2e-a2-18",
+          text: "Install a BS EN 60309 16A T P & N socket outlet in XLPE SWA cable",
+        },
+        {
+          id: "am2e-a2-19",
+          text: "Install protective equipotential bonding to gas and water services",
+        },
+        {
+          id: "am2e-a2-20",
+          text: "Connect a 3-phase direct on line motor circuit in SY cable",
+        },
+        {
+          id: "am2e-a2-21",
+          text: "Install an S Plan central heating and hot water system with a solar thermal sustainable energy element utilising heat resistant flexible cable and PVC singles cable",
+        },
+      ],
+    },
+    {
+      id: "am2e-section-b",
+      key: "B",
+      label: "Section B",
+      title: "Section B: Inspection, Testing and Certification (3.5 hours)",
+      duration: "3.5 hours",
+      summary:
+        "In this area candidates will be expected to follow practices and procedures that take into account electrically sensitive equipment. To demonstrate occupational competence, candidates will be expected to:",
+      items: [
+        {
+          id: "am2e-b-1",
+          text: "Work according to best practice as required by Health and Safety legislation",
+        },
+        {
+          id: "am2e-b-2",
+          text: "Ensure the installation is correctly isolated before commencing the inspection and test activity",
+        },
+        {
+          id: "am2e-b-3",
+          text: "Carry out a visual inspection of the installation in accordance with BS 7671 and IET Guidance Note 3",
+        },
+        {
+          id: "am2e-b-4",
+          text: "Continuity of protective conductors",
+        },
+        {
+          id: "am2e-b-5",
+          text: "Continuity of ring final circuit conductors",
+        },
+        {
+          id: "am2e-b-6",
+          text: "Insulation resistance",
+        },
+        {
+          id: "am2e-b-7",
+          text: "Polarity",
+        },
+        {
+          id: "am2e-b-8",
+          text: "Earth fault-loop impedance (EFLI)",
+        },
+        {
+          id: "am2e-b-9",
+          text: "Prospective fault current (PFC)",
+        },
+        {
+          id: "am2e-b-10",
+          text: "Check for phase sequence and phase rotation",
+        },
+        {
+          id: "am2e-b-11",
+          text: "Functional testing",
+        },
+        {
+          id: "am2e-b-12",
+          text: "Verify that the test results obtained conform to the values required by BS 7671 and IET Guidance Note 3",
+        },
+        {
+          id: "am2e-b-13",
+          text: "Complete an electrical installation certificate, schedule of inspections and schedule of test results using the model forms as illustrated in Appendix 6 of BS 7671",
+        },
+      ],
+    },
+    {
+      id: "am2e-section-c",
+      key: "C",
+      label: "Section C",
+      title: "Section C: Safe Isolation of Circuits (30 mins)",
+      duration: "30 mins",
+      summary:
+        "To demonstrate occupational competence candidates will be expected to:",
+      items: [
+        {
+          id: "am2e-c-1",
+          text: "Carry out safe isolation in the correct sequence on a single-phase circuit",
+        },
+        {
+          id: "am2e-c-2",
+          text: "Carry out safe isolation in the correct sequence on a three-phase circuit",
+        },
+        {
+          id: "am2e-c-3",
+          text: "Carry out safe isolation in the correct sequence on a three-phase installation",
+        },
+      ],
+    },
+    {
+      id: "am2e-section-d",
+      key: "D",
+      label: "Section D",
+      title: "Section D: Fault Diagnosis and Rectification (2 hours)",
+      duration: "2 hours",
+      summary:
+        "To demonstrate occupational competence candidates will be expected to:",
+      items: [
+        {
+          id: "am2e-d-1",
+          text: "Work according to best practice as required by Health and Safety legislation",
+        },
+        {
+          id: "am2e-d-2",
+          text: "Correctly identify and use tools, equipment and test instruments that are fit for purpose",
+        },
+        {
+          id: "am2e-d-3",
+          text: "Carry out checks and preparations that must be completed prior to undertaking fault diagnosis",
+        },
+        {
+          id: "am2e-d-4",
+          text: "Identify faults from 'fault symptom' information given by the assessor",
+        },
+        {
+          id: "am2e-d-5",
+          text: "State and record how the identified faults can be rectified",
+        },
+      ],
+    },
+    {
+      id: "am2e-section-e",
+      key: "E",
+      label: "Section E",
+      title: "Section E: Assessment of Applied Knowledge (1 hour)",
+      duration: "1 hour",
+      summary:
+        "This assessment will last for one hour and be in the form of a computerised multiple-choice test. Candidates will be expected to answer 30 questions and will be assessed on their application of knowledge associated with:",
+      items: [
+        {
+          id: "am2e-e-1",
+          text: "Health and Safety",
+        },
+        {
+          id: "am2e-e-2",
+          text: "BS 7671: Requirements for Electrical Installations",
+        },
+        {
+          id: "am2e-e-3",
+          text: "Building Regulations",
+        },
+        {
+          id: "am2e-e-4",
+          text: "Inspection, Testing and Fault Finding",
+        },
+      ],
+    },
+  ];
+}
+
+function buildChecklistTemplates(variant = "am2") {
+  if (variant === "am2e") {
+    return buildAm2eFullChecklistTemplates();
+  }
+
+  return buildAm2ChecklistTemplates();
+}
+
+function normalizeChecklistTemplateItem(templateItem, sectionId, index) {
+  if (typeof templateItem === "string") {
+    return {
+      id: `${sectionId}-item-${index + 1}`,
+      no: index + 1,
+      criterion: templateItem,
+    };
+  }
+
+  const itemId = normalizeString(templateItem?.id) || `${sectionId}-item-${index + 1}`;
+  const criterion =
+    normalizeString(templateItem?.criterion) ||
+    normalizeString(templateItem?.text) ||
+    normalizeString(templateItem?.label);
+  const itemNumber = normalizeChecklistItemNumber(templateItem?.no ?? templateItem?.number);
+
+  return {
+    id: itemId,
+    no: itemNumber || index + 1,
+    criterion,
+  };
+}
+
 function normalizeChecklistLevel(value) {
   const normalizedValue = normalizeString(value).toLowerCase();
   return ["extensive", "adequate", "limited", "unsure", "acceptable", "unusual"].includes(
@@ -2705,20 +3063,25 @@ function normalizeChecklistItemNumber(value) {
   return null;
 }
 
-function buildChecklistTemplateLookups() {
-  const templates = buildChecklistTemplates();
+function buildChecklistTemplateLookups(variant = "am2") {
+  const templates = buildChecklistTemplates(variant);
   const validItemIds = new Set();
   const criterionToItemId = new Map();
   const sectionKeyToSectionId = new Map();
+  const sectionNumberToItemId = new Map();
 
   templates.forEach((section) => {
     sectionKeyToSectionId.set(normalizeString(section.key).toLowerCase(), section.id);
     sectionKeyToSectionId.set(normalizeString(section.id).toLowerCase(), section.id);
 
-    section.items.forEach((criterion, index) => {
-      const itemId = `${section.id}-item-${index + 1}`;
-      validItemIds.add(itemId);
-      criterionToItemId.set(normalizeString(criterion).toLowerCase(), itemId);
+    section.items.forEach((templateItem, index) => {
+      const item = normalizeChecklistTemplateItem(templateItem, section.id, index);
+      validItemIds.add(item.id);
+      sectionNumberToItemId.set(`${section.id}:${item.no}`, item.id);
+
+      if (item.criterion) {
+        criterionToItemId.set(item.criterion.toLowerCase(), item.id);
+      }
     });
   });
 
@@ -2726,6 +3089,7 @@ function buildChecklistTemplateLookups() {
     validItemIds,
     criterionToItemId,
     sectionKeyToSectionId,
+    sectionNumberToItemId,
   };
 }
 
@@ -2760,6 +3124,11 @@ function resolveChecklistResponseItemId(response, lookups, fallbackContext = {})
   );
 
   if (resolvedSectionId && itemNumber) {
+    const mappedItemId = lookups.sectionNumberToItemId.get(`${resolvedSectionId}:${itemNumber}`);
+    if (mappedItemId) {
+      return mappedItemId;
+    }
+
     const sectionItemId = `${resolvedSectionId}-item-${itemNumber}`;
     if (lookups.validItemIds.has(sectionItemId)) {
       return sectionItemId;
@@ -2875,11 +3244,14 @@ function buildChecklistResponsesForClient(booking) {
     .filter(Boolean);
 }
 
-function buildChecklistFlowItem(criterion, sectionId, index) {
+function buildChecklistFlowItem(templateItem, sectionId, index) {
+  const item = normalizeChecklistTemplateItem(templateItem, sectionId, index);
+
   return {
-    id: `${sectionId}-item-${index + 1}`,
-    no: index + 1,
-    criterion,
+    id: item.id,
+    no: item.no,
+    criterion: item.criterion,
+    text: item.criterion,
     knowledgeLevel: "",
     experienceLevel: "",
     knowledge: buildChecklistBooleanOptionMap(""),
@@ -2891,13 +3263,19 @@ function buildChecklistFlowItem(criterion, sectionId, index) {
   };
 }
 
-function buildChecklistSectionsForBooking(booking) {
-  const templates = buildChecklistTemplates();
+function getChecklistVariantForBooking(booking) {
+  const selectedOption = findEligibilityOptionById(booking?.eligibilityCheck?.nvqRegistrationDate);
+  return selectedOption?.leadsToVariant || "am2";
+}
+
+function buildChecklistSectionsForBooking(booking, variant = getChecklistVariantForBooking(booking)) {
+  const templates = buildChecklistTemplates(variant);
   const responseMap = getChecklistResponseMap(booking);
 
   return templates.map((section) => {
-    const items = section.items.map((criterion, index) => {
-      const itemId = `${section.id}-item-${index + 1}`;
+    const items = section.items.map((templateItem, index) => {
+      const item = normalizeChecklistTemplateItem(templateItem, section.id, index);
+      const itemId = item.id;
       const response = responseMap.get(itemId) || {
         knowledgeLevel: "",
         experienceLevel: "",
@@ -2906,8 +3284,9 @@ function buildChecklistSectionsForBooking(booking) {
 
       return {
         id: itemId,
-        no: index + 1,
-        criterion,
+        no: item.no,
+        criterion: item.criterion,
+        text: item.criterion,
         knowledgeLevel: response.knowledgeLevel,
         experienceLevel: response.experienceLevel,
         knowledge: buildChecklistBooleanOptionMap(response.knowledgeLevel),
@@ -2983,14 +3362,15 @@ function buildBookingFlowDocumentsScreen(booking) {
 }
 
 function buildBookingFlowChecklistSummaryScreen(booking) {
-  const sections = buildChecklistSectionsForBooking(booking);
+  const checklistMetadata = getChecklistVariantMetadata(getChecklistVariantForBooking(booking));
+  const sections = buildChecklistSectionsForBooking(booking, checklistMetadata.variant);
   const completion = calculateChecklistCompletion(sections);
 
   return {
     steps: buildBookingFlowSteps("checklist"),
     card: {
-      title: "AM2 Checklist",
-      subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
+      title: checklistMetadata.title,
+      subtitle: checklistMetadata.subtitle,
     },
     importantInformation: "Important Information",
     overallCompletion: completion.percentage,
@@ -3013,7 +3393,8 @@ function buildBookingFlowChecklistSummaryScreen(booking) {
 }
 
 function buildBookingFlowChecklistFullScreen(booking, activeSectionKey) {
-  const sections = buildChecklistSectionsForBooking(booking);
+  const checklistMetadata = getChecklistVariantMetadata(getChecklistVariantForBooking(booking));
+  const sections = buildChecklistSectionsForBooking(booking, checklistMetadata.variant);
   const completion = calculateChecklistCompletion(sections);
   const activeSection =
     sections.find((section) => section.key.toLowerCase() === String(activeSectionKey || "").toLowerCase()) ||
@@ -3021,8 +3402,8 @@ function buildBookingFlowChecklistFullScreen(booking, activeSectionKey) {
 
   return {
     steps: buildBookingFlowSteps("checklist"),
-    title: "AM2 Checklist",
-    subtitle: "Complete your AM2 checklist.",
+    title: checklistMetadata.title,
+    subtitle: checklistMetadata.description,
     overallCompletion: completion.percentage,
     actions: {
       saveDraft: {
@@ -3128,6 +3509,7 @@ function buildBookingFlowSignaturesScreen(booking) {
 }
 
 function buildBookingFlowSubmitScreen(booking) {
+  const checklistMetadata = getChecklistVariantMetadata(getChecklistVariantForBooking(booking));
   const readyForSubmit = isBookingReadyForSubmit(booking);
   const documentRequirements = buildDocumentRequirements(booking);
   const documentCompletion = {
@@ -3154,7 +3536,7 @@ function buildBookingFlowSubmitScreen(booking) {
     },
     {
       id: "checklist",
-      label: "AM2 Checklist",
+      label: checklistMetadata.title,
       status: isBookingChecklistComplete(booking) ? "completed" : "pending",
     },
     {
@@ -4354,7 +4736,9 @@ async function saveMyBookingChecklist(req, res, next) {
       });
     }
 
-    const checklistLookups = buildChecklistTemplateLookups();
+    const checklistLookups = buildChecklistTemplateLookups(
+      getChecklistVariantForBooking(bookingResult.value)
+    );
 
     const normalizedResponses = rawResponses
       .map((response) => ({
