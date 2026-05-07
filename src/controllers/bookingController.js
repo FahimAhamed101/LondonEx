@@ -549,6 +549,37 @@ function buildAm2eChecklistCoverageReport(variant) {
     };
   }
 
+  if (variant === "am2e-v1") {
+    return {
+      checklistCoverage: {
+        matched: [
+          "AM2E v1 Full Checklist from the NET 02.25 PDF",
+          "Section A1 with 2 checklist items",
+          "Sections A2-A6 with 21 checklist items",
+          "Section B with 13 checklist items",
+          "Section C with 3 checklist items",
+          "Section D with 5 checklist items",
+          "Section E with 4 checklist items",
+          "Knowledge level options: Extensive, Adequate, Limited, Unsure",
+          "Experience level options: Extensive, Adequate, Limited, Unsure",
+          "Eligibility branch uses qualification selection plus NVQ registration date",
+        ],
+        missingFields: [],
+        mismatches: [
+          {
+            field: "eligibility branch persistence",
+            status: "backend_preview_only",
+            note:
+              "These endpoints return the checklist variant definition by course and branch rule, but they do not yet persist the chosen branch onto a booking record automatically.",
+          },
+        ],
+        notes: [
+          "The AM2E v1 route selected by after-september-2023 now returns the full AM2E v1 checklist questions from the provided NET PDF.",
+        ],
+      },
+    };
+  }
+
   return {
     checklistCoverage: {
       matched: [
@@ -2590,9 +2621,9 @@ function getChecklistVariantMetadata(variant = "am2") {
     return {
       variant: "am2e-v1",
       templateId: "am2e-v1-checklist",
-      title: "AM2E V1 Checklist",
+      title: "AM2E v1 Full Checklist",
       subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
-      description: "Complete your AM2E V1 checklist.",
+      description: "Complete your AM2E v1 full checklist.",
     };
   }
 
@@ -2986,9 +3017,276 @@ function buildAm2eFullChecklistTemplates() {
   ];
 }
 
+function buildAm2eV1ChecklistTemplates() {
+  return [
+    {
+      id: "am2ev1-section-a1",
+      key: "A1",
+      label: "Section A1",
+      title: "Section A1: Safe Isolation and Risk Assessment (45 mins)",
+      duration: "45 mins",
+      summary:
+        "To demonstrate occupational competence candidates will be expected to:",
+      items: [
+        {
+          id: "am2ev1-a1-1",
+          text: "Carry out and document an assessment of risk",
+        },
+        {
+          id: "am2ev1-a1-2",
+          text: "Carry out safe isolation in the correct sequence considering any separate energy systems",
+        },
+      ],
+    },
+    {
+      id: "am2ev1-section-a2-a6",
+      key: "A2-A6",
+      label: "Sections A2-A6",
+      title: "Sections A2-A6: Composite Installation (10.5 hours)",
+      duration: "10.5 hours",
+      summary:
+        "This section has areas where candidates will need to demonstrate occupational competence in accordance with statutory and non-statutory regulations and approved industry working practices.",
+      items: [
+        {
+          id: "am2ev1-a2-1",
+          text: "Interpretation of specifications and technical data",
+        },
+        {
+          id: "am2ev1-a2-2",
+          text: "Selection of protective devices, single pole and triple pole",
+        },
+        {
+          id: "am2ev1-a2-3",
+          text: "Install protective equipotential bonding",
+        },
+        {
+          id: "am2ev1-a2-4",
+          text: "Install and terminate PVC singles cable",
+        },
+        {
+          id: "am2ev1-a2-5",
+          text: "Install and terminate PVC/PVC multi-core & cpc cable",
+        },
+        {
+          id: "am2ev1-a2-6",
+          text: "Install and terminate SY multi-flex cable",
+        },
+        {
+          id: "am2ev1-a2-7",
+          text: "Install and terminate heat-resistant flex",
+        },
+        {
+          id: "am2ev1-a2-8",
+          text: "Install and terminate XLPE SWA",
+        },
+        {
+          id: "am2ev1-a2-9",
+          text: "Install and terminate data-cable",
+        },
+        {
+          id: "am2ev1-a2-10",
+          text: "Install and terminate FP200 type cable",
+        },
+        {
+          id: "am2ev1-a2-11",
+          text: "Form and install metal conduit systems",
+        },
+        {
+          id: "am2ev1-a2-12",
+          text: "Form and install PVC conduit systems",
+        },
+        {
+          id: "am2ev1-a2-13",
+          text: "Install protective devices in a TP&N distribution board",
+        },
+        {
+          id: "am2ev1-a2-14",
+          text: "Install a two-way, intermediate and key switch for various lighting circuits in PVC/PVC multi-core cable",
+        },
+        {
+          id: "am2ev1-a2-15",
+          text: "Install a BS 1363 13A socket outlet ring circuit using PVC single cables",
+        },
+        {
+          id: "am2ev1-a2-16",
+          text: "Install a carbon monoxide detector safety service circuit in FP200 type cable",
+        },
+        {
+          id: "am2ev1-a2-17",
+          text: "Install data outlets circuit in Cat. 5 cable",
+        },
+        {
+          id: "am2ev1-a2-18",
+          text: "Install a BS EN 60309 20A T P & N supply in XLPE SWA cable for electric vehicle pillar",
+        },
+        {
+          id: "am2ev1-a2-19",
+          text: "Install protective equipotential bonding to gas and water services",
+        },
+        {
+          id: "am2ev1-a2-20",
+          text: "Connect a 3-phase direct online motor circuit in SY cable with remote start stop function using PVC singles",
+        },
+        {
+          id: "am2ev1-a2-21",
+          text: "Install an S Plan central heating and hot water system with a solar thermal sustainable energy element utilising heat resistant flexible cable and PVC singles cable",
+        },
+      ],
+    },
+    {
+      id: "am2ev1-section-b",
+      key: "B",
+      label: "Section B",
+      title: "Section B: Inspection, Testing and Certification (3.5 hours)",
+      duration: "3.5 hours",
+      summary:
+        "In this area candidates will be expected to follow practices and procedures that take into account electrically sensitive equipment. To demonstrate occupational competence, candidates will be expected to:",
+      items: [
+        {
+          id: "am2ev1-b-1",
+          text: "Work according to best practice as required by Health and Safety legislation",
+        },
+        {
+          id: "am2ev1-b-2",
+          text: "Ensure the installation is correctly isolated before commencing the inspection and test activity taking into account any renewable sources",
+        },
+        {
+          id: "am2ev1-b-3",
+          text: "Carry out a visual inspection of the installation in accordance with BS 7671 and IET Guidance Note 3",
+        },
+        {
+          id: "am2ev1-b-4",
+          text: "Continuity of protective conductors",
+        },
+        {
+          id: "am2ev1-b-5",
+          text: "Continuity of ring final circuit conductors",
+        },
+        {
+          id: "am2ev1-b-6",
+          text: "Insulation resistance",
+        },
+        {
+          id: "am2ev1-b-7",
+          text: "Polarity",
+        },
+        {
+          id: "am2ev1-b-8",
+          text: "Earth fault-loop impedance (EFLI)",
+        },
+        {
+          id: "am2ev1-b-9",
+          text: "Prospective fault current (PFC)",
+        },
+        {
+          id: "am2ev1-b-10",
+          text: "Check for phase sequence and phase rotation",
+        },
+        {
+          id: "am2ev1-b-11",
+          text: "Functional testing",
+        },
+        {
+          id: "am2ev1-b-12",
+          text: "Verify that the test results obtained conform to the values required by BS 7671 and IET Guidance Note 3",
+        },
+        {
+          id: "am2ev1-b-13",
+          text: "Complete an electrical installation certificate, schedule of inspections and schedule of test results using the model forms as illustrated in Appendix 6 of BS 7671",
+        },
+      ],
+    },
+    {
+      id: "am2ev1-section-c",
+      key: "C",
+      label: "Section C",
+      title: "Section C: Safe Isolation of Circuits (30 mins)",
+      duration: "30 mins",
+      summary:
+        "To demonstrate occupational competence candidates will be expected to:",
+      items: [
+        {
+          id: "am2ev1-c-1",
+          text: "Carry out safe isolation in the correct sequence on a single-phase circuit",
+        },
+        {
+          id: "am2ev1-c-2",
+          text: "Carry out safe isolation in the correct sequence on a three-phase circuit",
+        },
+        {
+          id: "am2ev1-c-3",
+          text: "Carry out safe isolation in the correct sequence on a three-phase installation",
+        },
+      ],
+    },
+    {
+      id: "am2ev1-section-d",
+      key: "D",
+      label: "Section D",
+      title: "Section D: Fault Diagnosis and Rectification (2 hours)",
+      duration: "2 hours",
+      summary:
+        "To demonstrate occupational competence candidates will be expected to:",
+      items: [
+        {
+          id: "am2ev1-d-1",
+          text: "Work according to best practice as required by Health and Safety legislation",
+        },
+        {
+          id: "am2ev1-d-2",
+          text: "Correctly select and use tools, equipment and test instruments.",
+        },
+        {
+          id: "am2ev1-d-3",
+          text: "Carry out checks and preparations that must be completed prior to undertaking fault diagnosis",
+        },
+        {
+          id: "am2ev1-d-4",
+          text: "Identify faults from 'fault symptom' information.",
+        },
+        {
+          id: "am2ev1-d-5",
+          text: "State and record how the identified faults can be rectified",
+        },
+      ],
+    },
+    {
+      id: "am2ev1-section-e",
+      key: "E",
+      label: "Section E",
+      title: "Section E: Assessment of Applied Knowledge (1.5 hours)",
+      duration: "1.5 hours",
+      summary:
+        "This assessment will last for 1.5 hours and be in the form of a computerised multiple-choice test. Candidates will be expected to answer 40 questions and will be assessed on their application of knowledge associated with:",
+      items: [
+        {
+          id: "am2ev1-e-1",
+          text: "Health and Safety",
+        },
+        {
+          id: "am2ev1-e-2",
+          text: "BS 7671: Requirements for Electrical Installations including any current amendments",
+        },
+        {
+          id: "am2ev1-e-3",
+          text: "Building Regulations",
+        },
+        {
+          id: "am2ev1-e-4",
+          text: "Inspection, Testing and Fault Finding",
+        },
+      ],
+    },
+  ];
+}
+
 function buildChecklistTemplates(variant = "am2") {
   if (variant === "am2e") {
     return buildAm2eFullChecklistTemplates();
+  }
+
+  if (variant === "am2e-v1") {
+    return buildAm2eV1ChecklistTemplates();
   }
 
   return buildAm2ChecklistTemplates();
