@@ -26,6 +26,7 @@ const BOOKING_STATUSES = ["pending_payment", "confirmed", "cancelled"];
 const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded"];
 const BOOKING_TABS = ["upcoming", "past", "cancelled"];
 const APPLICATION_STATUSES = ["draft", "submitted", "under_review", "approved", "rejected"];
+const CHECKLIST_VARIANTS = ["am2", "am2e", "am2e-v1"];
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -66,6 +67,11 @@ function normalizeNumber(value, fallbackValue = 0) {
   }
 
   return fallbackValue;
+}
+
+function normalizeChecklistVariant(value) {
+  const normalizedValue = normalizeString(value).toLowerCase();
+  return CHECKLIST_VARIANTS.includes(normalizedValue) ? normalizedValue : "";
 }
 
 function buildUrlFromBase(baseUrl, token) {
@@ -125,7 +131,7 @@ function isAm2BookingFlow(booking) {
     .map((value) => normalizeString(value).toLowerCase())
     .join(" ");
 
-  return /\bam2\b/.test(source);
+  return /\bam2(?:e(?:[\s_-]*v?1)?)?\b/.test(source);
 }
 
 function escapeRegex(value) {
@@ -446,6 +452,7 @@ function buildAm2ChecklistFlowPreview(course) {
       title: course.title || "",
       slug: course.slug || "",
       qualification: course.qualification || "",
+      assessmentVariant: normalizeChecklistVariant(course.assessmentVariant) || "am2",
       location: course.location || "",
       schedule: course.schedule || "",
       duration: course.duration || "",
@@ -454,6 +461,7 @@ function buildAm2ChecklistFlowPreview(course) {
       thumbnailUrl: course.thumbnailUrl || course.galleryImages?.[0] || "",
       galleryImages: course.galleryImages || [],
     },
+    checklistVariant: "am2",
     flow: {
       steps: BOOKING_FLOW_STEPS.map((step, index) => ({
         ...step,
@@ -755,6 +763,7 @@ function buildAm2eChecklistFlowPreview(course, variant) {
       title: course.title || "",
       slug: course.slug || "",
       qualification: course.qualification || "",
+      assessmentVariant: normalizeChecklistVariant(course.assessmentVariant) || variant,
       location: course.location || "",
       schedule: course.schedule || "",
       duration: course.duration || "",
@@ -841,7 +850,7 @@ async function findChecklistCourseById(courseId) {
   }
 
   const course = await Course.findById(courseId).select(
-    "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
+    "_id title slug qualification assessmentVariant shortDescription location schedule duration price currency thumbnailUrl galleryImages"
   );
 
   if (!course) {
@@ -854,6 +863,349 @@ async function findChecklistCourseById(courseId) {
   return { course };
 }
 
+function inferChecklistVariantFromCourse(course) {
+  const explicitVariant = normalizeChecklistVariant(course?.assessmentVariant);
+  if (explicitVariant) {
+    return {
+      variant: explicitVariant,
+      source: "course.assessmentVariant",
+    };
+  }
+
+  const searchableCourseText = [
+    course?.title,
+    course?.slug,
+    course?.qualification,
+    course?.shortDescription,
+  ]
+    .map((value) => normalizeString(value).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+
+  if (/\bam2e[\s_-]*v?1\b/.test(searchableCourseText)) {
+    return {
+      variant: "am2e-v1",
+      source: "course-text-inference",
+    };
+  }
+
+  if (/\bam2e\b/.test(searchableCourseText)) {
+    return {
+      variant: "am2e",
+      source: "course-text-inference",
+    };
+  }
+
+  if (/\bam2\b/.test(searchableCourseText)) {
+    return {
+      variant: "am2",
+      source: "course-text-inference",
+    };
+  }
+
+  return {
+    variant: "am2",
+    source: "default",
+  };
+}
+
+function buildChecklistVariantApiUrl(variant, courseId, query = {}) {
+  const params = new URLSearchParams({
+    courseId: String(courseId),
+  });
+  const questionId = normalizeString(query.questionId || query.question || query.stepId);
+  const answerId = normalizeString(query.answerId || query.selectedAnswerId || query.optionId);
+
+  if (questionId) {
+    params.set("questionId", questionId);
+  }
+
+  if (answerId) {
+    params.set("answerId", answerId);
+  }
+
+  if (variant === "am2e") {
+    return `/api/bookings/am2e-checklist-flow?${params.toString()}`;
+  }
+
+  if (variant === "am2e-v1") {
+    return `/api/bookings/am2e-v1-checklist-flow?${params.toString()}`;
+  }
+
+  return `/api/bookings/am2-checklist-flow?${params.toString()}`;
+}
+
+function buildUnifiedChecklistFlowApiUrl(courseId, query = {}, resolvedVariant = "") {
+  const params = new URLSearchParams({
+    courseId: String(courseId),
+  });
+  const questionId = normalizeString(query.questionId || query.question || query.stepId);
+  const answerId = normalizeString(query.answerId || query.selectedAnswerId || query.optionId);
+  const variant = normalizeChecklistVariant(
+    resolvedVariant || query.assessmentVariant || query.checklistVariant || query.variant
+  );
+
+  if (variant) {
+    params.set("variant", variant);
+  }
+
+  if (questionId) {
+    params.set("questionId", questionId);
+  }
+
+  if (answerId) {
+    params.set("answerId", answerId);
+  }
+
+  return `/api/bookings/checklist-flow?${params.toString()}`;
+}
+
+function resolveChecklistVariantForCourse(course, query = {}, options = {}) {
+  const routeVariant = normalizeChecklistVariant(options.routeVariant);
+  const requestedVariantRaw = normalizeString(
+    query.assessmentVariant || query.checklistVariant || query.variant
+  );
+  const requestedVariant = normalizeChecklistVariant(requestedVariantRaw);
+  const answerId = normalizeString(query.answerId || query.selectedAnswerId || query.optionId);
+  const courseVariant = inferChecklistVariantFromCourse(course);
+
+  if (requestedVariantRaw && !requestedVariant) {
+    return {
+      error: "variant must be one of am2, am2e, or am2e-v1",
+    };
+  }
+
+  if (answerId) {
+    const variantResult = resolveAm2eChecklistVariant(
+      requestedVariant || routeVariant || courseVariant.variant || "am2e",
+      query
+    );
+
+    if (variantResult.error) {
+      return variantResult;
+    }
+
+    return {
+      ...variantResult,
+      variant: variantResult.variant,
+      routeVariant: routeVariant || "",
+      requestedVariant: requestedVariant || "",
+      courseVariant: courseVariant.variant,
+      courseVariantSource: courseVariant.source,
+      source: "eligibility-answer",
+    };
+  }
+
+  if (requestedVariant) {
+    return {
+      variant: requestedVariant,
+      selectedQuestionId: "",
+      selectedAnswerId: "",
+      selectedAnswer: null,
+      routeSource: "query-variant",
+      routeVariant: routeVariant || "",
+      requestedVariant,
+      courseVariant: courseVariant.variant,
+      courseVariantSource: courseVariant.source,
+      source: "query-variant",
+    };
+  }
+
+  if (routeVariant) {
+    return {
+      variant: routeVariant,
+      selectedQuestionId: "",
+      selectedAnswerId: "",
+      selectedAnswer: null,
+      routeSource: "route-default",
+      routeVariant,
+      requestedVariant: "",
+      courseVariant: courseVariant.variant,
+      courseVariantSource: courseVariant.source,
+      source: "route-default",
+    };
+  }
+
+  return {
+    variant: courseVariant.variant,
+    selectedQuestionId: "",
+    selectedAnswerId: "",
+    selectedAnswer: null,
+    routeSource: courseVariant.source,
+    routeVariant: "",
+    requestedVariant: "",
+    courseVariant: courseVariant.variant,
+    courseVariantSource: courseVariant.source,
+    source: courseVariant.source,
+  };
+}
+
+function buildAvailableChecklistVariants(courseId) {
+  return CHECKLIST_VARIANTS.map((variant) => {
+    const metadata = getChecklistVariantMetadata(variant);
+
+    return {
+      variant,
+      templateId: metadata.templateId,
+      title: metadata.title,
+      description: metadata.description,
+      apiUrl: buildChecklistVariantApiUrl(variant, courseId),
+    };
+  });
+}
+
+function buildChecklistVariantSummary(course, variantResult, query = {}) {
+  const metadata = getChecklistVariantMetadata(variantResult.variant);
+  const courseId = String(course._id);
+
+  return {
+    course: {
+      id: courseId,
+      title: course.title || "",
+      slug: course.slug || "",
+      qualification: course.qualification || "",
+      assessmentVariant: normalizeChecklistVariant(course.assessmentVariant) || variantResult.courseVariant || "am2",
+    },
+    checklistVariant: variantResult.variant,
+    assessmentVariant: variantResult.variant,
+    templateId: metadata.templateId,
+    title: metadata.title,
+    description: metadata.description,
+    resolvedFrom: {
+      source: variantResult.source || variantResult.routeSource || "default",
+      routeVariant: variantResult.routeVariant || "",
+      requestedVariant: variantResult.requestedVariant || "",
+      courseVariant: variantResult.courseVariant || "am2",
+      courseVariantSource: variantResult.courseVariantSource || "default",
+      selectedQuestionId: variantResult.selectedQuestionId || "",
+      selectedAnswerId: variantResult.selectedAnswerId || "",
+      selectedAnswerLabel: variantResult.selectedAnswer?.label || "",
+    },
+    api: {
+      canonicalFlowUrl: buildUnifiedChecklistFlowApiUrl(courseId, query, variantResult.variant),
+      legacyFlowUrl: buildChecklistVariantApiUrl(variantResult.variant, courseId, query),
+    },
+    pdfExport: {
+      checklistVariant: variantResult.variant,
+      templateId: metadata.templateId,
+      title: metadata.title,
+      flowUrl: buildUnifiedChecklistFlowApiUrl(courseId, query, variantResult.variant),
+    },
+    availableVariants: buildAvailableChecklistVariants(courseId),
+  };
+}
+
+function buildChecklistFlowResponseData(course, variantResult, query = {}) {
+  const responseData =
+    variantResult.variant === "am2"
+      ? buildAm2ChecklistFlowPreview(course)
+      : buildAm2eChecklistFlowPreview(course, variantResult.variant);
+  const variantSummary = buildChecklistVariantSummary(course, variantResult, query);
+
+  responseData.checklistVariant = variantResult.variant;
+  responseData.assessmentVariant = variantResult.variant;
+  responseData.resolvedFrom = variantSummary.resolvedFrom;
+  responseData.pdfExport = variantSummary.pdfExport;
+  responseData.availableVariants = variantSummary.availableVariants;
+
+  if (responseData.course) {
+    responseData.course.assessmentVariant = variantSummary.course.assessmentVariant;
+  }
+
+  return responseData;
+}
+
+function buildBookingChecklistVariantMetadata(booking) {
+  const variant = getChecklistVariantForBooking(booking);
+  const metadata = getChecklistVariantMetadata(variant);
+  const courseId = String(booking?.course?._id || booking?.course || "");
+  const selectedAnswerId = normalizeString(booking?.eligibilityCheck?.nvqRegistrationDate);
+  const hasSavedResponses = Array.isArray(booking?.checklistResponses) && booking.checklistResponses.length > 0;
+  const query = {
+    variant,
+  };
+
+  if (selectedAnswerId) {
+    query.questionId = "nvq-registration-date";
+    query.answerId = selectedAnswerId;
+  }
+
+  return {
+    checklistVariant: variant,
+    assessmentVariant: variant,
+    templateId: metadata.templateId,
+    title: metadata.title,
+    description: metadata.description,
+    resolvedFrom: {
+      source: selectedAnswerId ? "booking.eligibilityCheck.nvqRegistrationDate" : "booking.course",
+      selectedQuestionId: selectedAnswerId ? "nvq-registration-date" : "",
+      selectedAnswerId,
+      selectedAnswerLabel: findEligibilityOptionById(selectedAnswerId)?.label || "",
+    },
+    pdfExport: {
+      checklistVariant: variant,
+      assessmentVariant: variant,
+      templateId: metadata.templateId,
+      title: metadata.title,
+      hasSavedResponses,
+      bookingChecklistUrl: `/api/bookings/${booking._id}/flow/checklist/full`,
+      courseFlowUrl: courseId ? buildUnifiedChecklistFlowApiUrl(courseId, query, variant) : "",
+    },
+  };
+}
+
+function buildBookingChecklistFlowCourse(booking) {
+  const course = booking.course && typeof booking.course === "object" ? booking.course : {};
+  const variant = getChecklistVariantForBooking(booking);
+
+  return {
+    _id: course._id || booking.course || "",
+    title: course.title || booking.courseSnapshot?.title || "",
+    slug: course.slug || booking.courseSnapshot?.slug || "",
+    qualification: course.qualification || booking.courseSnapshot?.qualification || "",
+    assessmentVariant: variant,
+    shortDescription: course.shortDescription || "",
+    location: course.location || booking.courseSnapshot?.location || "",
+    schedule: course.schedule || booking.courseSnapshot?.schedule || "",
+    duration: course.duration || booking.courseSnapshot?.duration || "",
+    price: booking.payment?.amount ?? booking.courseSnapshot?.price ?? 0,
+    currency: booking.payment?.currency || booking.courseSnapshot?.currency || "GBP",
+    thumbnailUrl: booking.courseSnapshot?.thumbnailUrl || course.thumbnailUrl || "",
+    galleryImages: course.galleryImages || [],
+  };
+}
+
+function buildBookingChecklistFlowResponse(booking) {
+  const variantMetadata = buildBookingChecklistVariantMetadata(booking);
+  const course = buildBookingChecklistFlowCourse(booking);
+  const variantResult = {
+    variant: variantMetadata.checklistVariant,
+    routeVariant: variantMetadata.checklistVariant,
+    requestedVariant: "",
+    courseVariant: variantMetadata.assessmentVariant,
+    courseVariantSource: variantMetadata.resolvedFrom.source,
+    source: variantMetadata.resolvedFrom.source,
+    selectedQuestionId: variantMetadata.resolvedFrom.selectedQuestionId,
+    selectedAnswerId: variantMetadata.resolvedFrom.selectedAnswerId,
+    selectedAnswer: variantMetadata.resolvedFrom.selectedAnswerId
+      ? {
+          label: variantMetadata.resolvedFrom.selectedAnswerLabel,
+        }
+      : null,
+  };
+  const responseData = buildChecklistFlowResponseData(course, variantResult, {
+    variant: variantMetadata.checklistVariant,
+    questionId: variantMetadata.resolvedFrom.selectedQuestionId,
+    answerId: variantMetadata.resolvedFrom.selectedAnswerId,
+  });
+
+  responseData.availableVariants = (responseData.availableVariants || []).filter(
+    (item) => item.variant === variantMetadata.checklistVariant
+  );
+
+  return responseData;
+}
+
 function buildCourseSnapshot(course) {
   return {
     title: course.title,
@@ -861,6 +1213,7 @@ function buildCourseSnapshot(course) {
     schedule: course.schedule || "",
     duration: course.duration || "",
     qualification: course.qualification || "",
+    assessmentVariant: normalizeChecklistVariant(course.assessmentVariant) || "am2",
     location: course.location || "",
     thumbnailUrl: course.thumbnailUrl || course.galleryImages?.[0] || "",
     price: course.price || 0,
@@ -3563,7 +3916,21 @@ function buildChecklistFlowItem(templateItem, sectionId, index) {
 
 function getChecklistVariantForBooking(booking) {
   const selectedOption = findEligibilityOptionById(booking?.eligibilityCheck?.nvqRegistrationDate);
-  return selectedOption?.leadsToVariant || "am2";
+  if (selectedOption?.leadsToVariant) {
+    return selectedOption.leadsToVariant;
+  }
+
+  const snapshotVariant = normalizeChecklistVariant(booking?.courseSnapshot?.assessmentVariant);
+  if (snapshotVariant) {
+    return snapshotVariant;
+  }
+
+  const populatedCourseVariant = normalizeChecklistVariant(booking?.course?.assessmentVariant);
+  if (populatedCourseVariant) {
+    return populatedCourseVariant;
+  }
+
+  return inferChecklistVariantFromCourse(booking?.courseSnapshot || booking?.course || {}).variant;
 }
 
 function buildChecklistSectionsForBooking(booking, variant = getChecklistVariantForBooking(booking)) {
@@ -3660,12 +4027,18 @@ function buildBookingFlowDocumentsScreen(booking) {
 }
 
 function buildBookingFlowChecklistSummaryScreen(booking) {
-  const checklistMetadata = getChecklistVariantMetadata(getChecklistVariantForBooking(booking));
+  const variantMetadata = buildBookingChecklistVariantMetadata(booking);
+  const checklistMetadata = getChecklistVariantMetadata(variantMetadata.checklistVariant);
   const sections = buildChecklistSectionsForBooking(booking, checklistMetadata.variant);
   const completion = calculateChecklistCompletion(sections);
 
   return {
     steps: buildBookingFlowSteps("checklist"),
+    checklistVariant: variantMetadata.checklistVariant,
+    assessmentVariant: variantMetadata.assessmentVariant,
+    templateId: variantMetadata.templateId,
+    resolvedFrom: variantMetadata.resolvedFrom,
+    pdfExport: variantMetadata.pdfExport,
     card: {
       title: checklistMetadata.title,
       subtitle: checklistMetadata.subtitle,
@@ -3691,7 +4064,8 @@ function buildBookingFlowChecklistSummaryScreen(booking) {
 }
 
 function buildBookingFlowChecklistFullScreen(booking, activeSectionKey) {
-  const checklistMetadata = getChecklistVariantMetadata(getChecklistVariantForBooking(booking));
+  const variantMetadata = buildBookingChecklistVariantMetadata(booking);
+  const checklistMetadata = getChecklistVariantMetadata(variantMetadata.checklistVariant);
   const sections = buildChecklistSectionsForBooking(booking, checklistMetadata.variant);
   const completion = calculateChecklistCompletion(sections);
   const activeSection =
@@ -3700,6 +4074,11 @@ function buildBookingFlowChecklistFullScreen(booking, activeSectionKey) {
 
   return {
     steps: buildBookingFlowSteps("checklist"),
+    checklistVariant: variantMetadata.checklistVariant,
+    assessmentVariant: variantMetadata.assessmentVariant,
+    templateId: variantMetadata.templateId,
+    resolvedFrom: variantMetadata.resolvedFrom,
+    pdfExport: variantMetadata.pdfExport,
     title: checklistMetadata.title,
     subtitle: checklistMetadata.description,
     overallCompletion: completion.percentage,
@@ -3988,10 +4367,13 @@ function mapBookingSummary(booking, options = {}) {
   const sessionStartDateTime = booking.session?.startDateTime || null;
   const sessionEndDateTime = booking.session?.endDateTime || null;
   const sessionLocation = booking.session?.location || booking.courseSnapshot?.location || "";
+  const checklistVariant = getChecklistVariantForBooking(booking);
 
   const summary = {
     id: booking._id,
     bookingNumber: booking.bookingNumber,
+    checklistVariant,
+    assessmentVariant: checklistVariant,
     status: booking.status,
     paymentStatus: booking.payment?.status || "pending",
     tab,
@@ -4016,6 +4398,7 @@ function mapBookingSummary(booking, options = {}) {
       duration: booking.courseSnapshot?.duration || "",
       location: booking.courseSnapshot?.location || "",
       qualification: booking.courseSnapshot?.qualification || "",
+      assessmentVariant: booking.courseSnapshot?.assessmentVariant || checklistVariant,
       thumbnailUrl: booking.courseSnapshot?.thumbnailUrl || "",
       price: booking.payment?.amount ?? booking.courseSnapshot?.price ?? 0,
       currency: booking.payment?.currency || booking.courseSnapshot?.currency || "GBP",
@@ -4055,9 +4438,12 @@ function mapBookingSummary(booking, options = {}) {
 
 function mapBookingDetail(booking, options = {}) {
   const registrationProgress = buildRegistrationProgress(booking);
+  const variantMetadata = buildBookingChecklistVariantMetadata(booking);
 
   return {
     ...mapBookingSummary(booking, options),
+    checklistVariantMetadata: variantMetadata,
+    pdfExport: variantMetadata.pdfExport,
     personalDetails: {
       title: booking.personalDetails?.title || "",
       firstName: booking.personalDetails?.firstName || "",
@@ -4178,6 +4564,7 @@ function mapBookingDetail(booking, options = {}) {
 
 function mapAdminBookingDetail(booking) {
   const course = booking.course && typeof booking.course === "object" ? booking.course : null;
+  const variantMetadata = buildBookingChecklistVariantMetadata(booking);
 
   return {
     ...mapBookingDetail(booking, { includeUser: true, includeAdminActions: true }),
@@ -4201,6 +4588,9 @@ function mapAdminBookingDetail(booking) {
     reviewDecision: buildBookingReviewDecision(booking),
     checklistSummary: buildBookingChecklistSummary(booking, course),
     checklistResponses: buildChecklistResponsesForClient(booking),
+    checklistVariantMetadata: variantMetadata,
+    checklistFlow: buildBookingChecklistFlowResponse(booking),
+    pdfExport: variantMetadata.pdfExport,
   };
 }
 
@@ -4387,7 +4777,7 @@ async function findBookingForUser(id, userId) {
 
   const booking = await Booking.findOne(getBookingQueryForUser(id, userId)).populate(
     "course",
-    "title slug qualification sourceCourseName location schedule duration detailSections thumbnailUrl"
+    "title slug qualification assessmentVariant sourceCourseName location schedule duration detailSections thumbnailUrl"
   );
 
   if (!booking) {
@@ -4715,7 +5105,7 @@ async function getMyDashboard(req, res, next) {
     })
       .populate(
         "course",
-        "title slug qualification sourceCourseName location schedule duration detailSections thumbnailUrl"
+        "title slug qualification assessmentVariant sourceCourseName location schedule duration detailSections thumbnailUrl"
       )
       .sort({ "session.startDateTime": 1, createdAt: -1 })
       .limit(25);
@@ -5521,36 +5911,86 @@ async function getMockRegistrationData(req, res, next) {
 async function getAm2ChecklistFlowByCourseId(req, res, next) {
   try {
     const courseId = normalizeString(req.query?.courseId);
-
-    if (!courseId) {
-      return res.status(400).json({
+    const courseResult = await findChecklistCourseById(courseId);
+    if (courseResult.error) {
+      return res.status(courseResult.status).json({
         success: false,
-        message: "courseId is required",
+        message: courseResult.error,
       });
     }
 
-    if (!mongoose.isValidObjectId(courseId)) {
+    const variantResult = resolveChecklistVariantForCourse(courseResult.course, req.query || {}, {
+      routeVariant: "am2",
+    });
+    if (variantResult.error) {
       return res.status(400).json({
         success: false,
-        message: "Invalid courseId",
-      });
-    }
-
-    const course = await Course.findById(courseId).select(
-      "_id title slug qualification location schedule duration price currency thumbnailUrl galleryImages"
-    );
-
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found",
+        message: variantResult.error,
       });
     }
 
     return res.status(200).json({
       success: true,
       message: "AM2 checklist flow fetched successfully",
-      data: buildAm2ChecklistFlowPreview(course),
+      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getChecklistFlowByCourseId(req, res, next) {
+  try {
+    const courseId = normalizeString(req.query?.courseId);
+    const courseResult = await findChecklistCourseById(courseId);
+    if (courseResult.error) {
+      return res.status(courseResult.status).json({
+        success: false,
+        message: courseResult.error,
+      });
+    }
+
+    const variantResult = resolveChecklistVariantForCourse(courseResult.course, req.query || {});
+    if (variantResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: variantResult.error,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Checklist flow fetched successfully",
+      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getChecklistVariantByCourseId(req, res, next) {
+  try {
+    const courseId = normalizeString(req.query?.courseId);
+    const courseResult = await findChecklistCourseById(courseId);
+    if (courseResult.error) {
+      return res.status(courseResult.status).json({
+        success: false,
+        message: courseResult.error,
+      });
+    }
+
+    const variantResult = resolveChecklistVariantForCourse(courseResult.course, req.query || {});
+    if (variantResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: variantResult.error,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Checklist variant resolved successfully",
+      data: buildChecklistVariantSummary(courseResult.course, variantResult, req.query || {}),
     });
   } catch (error) {
     return next(error);
@@ -5568,7 +6008,9 @@ async function getAm2eChecklistFlowByCourseId(req, res, next) {
       });
     }
 
-    const variantResult = resolveAm2eChecklistVariant("am2e", req.query || {});
+    const variantResult = resolveChecklistVariantForCourse(courseResult.course, req.query || {}, {
+      routeVariant: "am2e",
+    });
     if (variantResult.error) {
       return res.status(400).json({
         success: false,
@@ -5576,19 +6018,10 @@ async function getAm2eChecklistFlowByCourseId(req, res, next) {
       });
     }
 
-    const responseData = buildAm2eChecklistFlowPreview(courseResult.course, variantResult.variant);
-    responseData.resolvedFrom = {
-      routeVariant: "am2e",
-      selectedQuestionId: variantResult.selectedQuestionId,
-      selectedAnswerId: variantResult.selectedAnswerId,
-      selectedAnswerLabel: variantResult.selectedAnswer?.label || "",
-      routeSource: variantResult.routeSource,
-    };
-
     return res.status(200).json({
       success: true,
       message: "AM2E checklist flow fetched successfully",
-      data: responseData,
+      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
     });
   } catch (error) {
     return next(error);
@@ -5606,7 +6039,9 @@ async function getAm2eV1ChecklistFlowByCourseId(req, res, next) {
       });
     }
 
-    const variantResult = resolveAm2eChecklistVariant("am2e-v1", req.query || {});
+    const variantResult = resolveChecklistVariantForCourse(courseResult.course, req.query || {}, {
+      routeVariant: "am2e-v1",
+    });
     if (variantResult.error) {
       return res.status(400).json({
         success: false,
@@ -5614,19 +6049,10 @@ async function getAm2eV1ChecklistFlowByCourseId(req, res, next) {
       });
     }
 
-    const responseData = buildAm2eChecklistFlowPreview(courseResult.course, variantResult.variant);
-    responseData.resolvedFrom = {
-      routeVariant: "am2e-v1",
-      selectedQuestionId: variantResult.selectedQuestionId,
-      selectedAnswerId: variantResult.selectedAnswerId,
-      selectedAnswerLabel: variantResult.selectedAnswer?.label || "",
-      routeSource: variantResult.routeSource,
-    };
-
     return res.status(200).json({
       success: true,
       message: "AM2E V1 checklist flow fetched successfully",
-      data: responseData,
+      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
     });
   } catch (error) {
     return next(error);
@@ -6237,7 +6663,7 @@ async function getAdminBookingById(req, res, next) {
       .populate("user", "name email role")
       .populate(
         "course",
-        "title slug qualification sourceCourseName location schedule duration detailSections"
+        "title slug qualification assessmentVariant sourceCourseName location schedule duration detailSections"
       );
 
     if (!booking) {
@@ -6274,7 +6700,7 @@ async function updateAdminBooking(req, res, next) {
       .populate("user", "name email role")
       .populate(
         "course",
-        "title slug qualification sourceCourseName location schedule duration detailSections"
+        "title slug qualification assessmentVariant sourceCourseName location schedule duration detailSections"
       );
 
     if (!booking) {
@@ -6456,6 +6882,8 @@ async function updateAdminBooking(req, res, next) {
 
 module.exports = {
   createBooking,
+  getChecklistFlowByCourseId,
+  getChecklistVariantByCourseId,
   getAm2ChecklistFlowByCourseId,
   getAm2eChecklistFlowByCourseId,
   getAm2eV1ChecklistFlowByCourseId,

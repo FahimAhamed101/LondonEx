@@ -13,6 +13,7 @@ const {
   createCourse,
   getAdminCourseById,
   updateCourse,
+  deleteCourse,
 } = require("../controllers/courseController");
 const {
   listAdminTeamMembers,
@@ -54,6 +55,7 @@ router.get("/courses/options", listCourseSourceOptions);
 router.post("/courses", uploadCourseImage, createCourse);
 router.get("/courses/:id", getAdminCourseById);
 router.patch("/courses/:id", uploadCourseImage, updateCourse);
+router.delete("/courses/:id", deleteCourse);
 router.get("/team", listAdminTeamMembers);
 router.post("/team", uploadTeamImage, createTeamMember);
 router.get("/team/:id", getAdminTeamMemberById);

@@ -17,9 +17,6 @@ import {
 import { 
   useUpdateAdminBookingMutation, 
   useGetMockRegistrationDataQuery,
-  useGetAm2ChecklistFlowQuery,
-  useGetAm2eChecklistFlowQuery,
-  useGetAm2eV1ChecklistFlowQuery
 } from "@/features/dashboard/dashboard.api";
 
 import type { AdminBookingDetail, DashboardTone } from "@/types/dashboard";
@@ -86,6 +83,41 @@ type ChecklistFlowData = {
     uln?: string;
   };
 };
+
+type ChecklistPreviewConfig = {
+  templateId: string;
+  label: string;
+  title: string;
+  buttonClassName: string;
+};
+
+const checklistPreviewConfigs: Record<string, ChecklistPreviewConfig> = {
+  am2: {
+    templateId: "am2-checklist",
+    label: "Preview AM2",
+    title: "AM2 Checklist Preview",
+    buttonClassName:
+      "bg-[linear-gradient(90deg,#48cfff_0%,#0ba8dd_100%)] text-white shadow-[0_12px_24px_rgba(11,168,221,0.24)]",
+  },
+  am2e: {
+    templateId: "net-am2e-full-candidate-checklist",
+    label: "Preview AM2E",
+    title: "AM2E Checklist Preview",
+    buttonClassName:
+      "bg-[linear-gradient(90deg,#65b7ff_0%,#1b76d1_100%)] text-white shadow-[0_12px_24px_rgba(27,118,209,0.24)]",
+  },
+  "am2e-v1": {
+    templateId: "am2e-v1-checklist",
+    label: "Preview AM2E V1",
+    title: "AM2E V1 Checklist Preview",
+    buttonClassName:
+      "bg-[linear-gradient(90deg,#8b5cf6_0%,#6d28d9_100%)] text-white shadow-[0_12px_24px_rgba(109,40,217,0.24)]",
+  },
+};
+
+function getChecklistPreviewConfig(variant?: string): ChecklistPreviewConfig {
+  return checklistPreviewConfigs[variant || ""] || checklistPreviewConfigs.am2;
+}
 
 const avatarToneClasses: Record<string, string> = {
   indigo: "bg-[#4f46e5]",
@@ -383,8 +415,6 @@ function ChecklistPreviewModal({ isOpen, onClose, templateId, booking, candidate
 export function BookingDetailsView({ booking }: BookingDetailsViewProps) {
   const [showNetRegPreview, setShowNetRegPreview] = useState(false);
   const [showChecklistPreview, setShowChecklistPreview] = useState(false);
-  const [showAm2ePreview, setShowAm2ePreview] = useState(false);
-  const [showAm2eV1Preview, setShowAm2eV1Preview] = useState(false);
   const [preview, setPreview] = useState<PreviewState>(null);
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
   const [decisionMessage, setDecisionMessage] = useState("");
@@ -396,23 +426,14 @@ export function BookingDetailsView({ booking }: BookingDetailsViewProps) {
     skip: !showNetRegPreview,
   });
 
-  // Always fetch all three checklist flows
-  const { data: am2ChecklistResponse } = useGetAm2ChecklistFlowQuery(booking.course.id);
-  const { data: am2eChecklistResponse } = useGetAm2eChecklistFlowQuery(booking.course.id);
-  const { data: am2eV1ChecklistResponse } = useGetAm2eV1ChecklistFlowQuery(booking.course.id);
-
-  const rawFlowData = (
-    showChecklistPreview ? am2ChecklistResponse?.data.flow :
-    showAm2ePreview ? am2eChecklistResponse?.data.flow :
-    showAm2eV1Preview ? am2eV1ChecklistResponse?.data.flow :
-    am2ChecklistResponse?.data.flow
-  ) as ChecklistFlowData | undefined;
-  
-  const rawCourseData =
-    showChecklistPreview ? am2ChecklistResponse?.data.course :
-    showAm2ePreview ? am2eChecklistResponse?.data.course :
-    showAm2eV1Preview ? am2eV1ChecklistResponse?.data.course :
-    am2ChecklistResponse?.data.course;
+  const checklistVariant =
+    booking.checklistVariantMetadata?.checklistVariant ||
+    booking.checklistVariant ||
+    booking.course.assessmentVariant ||
+    "am2";
+  const checklistPreview = getChecklistPreviewConfig(checklistVariant);
+  const rawFlowData = booking.checklistFlow?.flow as ChecklistFlowData | undefined;
+  const rawCourseData = booking.checklistFlow?.course || booking.course;
 
   // Enrich flow data with the actual saved checklist responses from backend
 const checklistFlowData = useMemo(() => {
@@ -1063,33 +1084,15 @@ const displayChecklistSections = useMemo(() => {
                   </p>
                 </div>
                 
-                {/* All three preview buttons always visible */}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
+                    disabled={!rawFlowData}
                     onClick={() => setShowChecklistPreview(true)}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] px-4 text-[14px] font-semibold bg-[linear-gradient(90deg,#48cfff_0%,#0ba8dd_100%)] text-white shadow-[0_12px_24px_rgba(11,168,221,0.24)] transition hover:opacity-90 active:scale-95"
+                    className={`inline-flex h-11 items-center justify-center gap-2 rounded-[12px] px-4 text-[14px] font-semibold transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${checklistPreview.buttonClassName}`}
                   >
                     <Eye className="h-4 w-4" />
-                    <span>Preview AM2</span>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setShowAm2ePreview(true)}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] px-4 text-[14px] font-semibold bg-[linear-gradient(90deg,#65b7ff_0%,#1b76d1_100%)] text-white shadow-[0_12px_24px_rgba(27,118,209,0.24)] transition hover:opacity-90 active:scale-95"
-                  >
-                    <Eye className="h-4 w-4" />
-                    <span>Preview AM2E</span>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setShowAm2eV1Preview(true)}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] px-4 text-[14px] font-semibold bg-[linear-gradient(90deg,#8b5cf6_0%,#6d28d9_100%)] text-white shadow-[0_12px_24px_rgba(109,40,217,0.24)] transition hover:opacity-90 active:scale-95"
-                  >
-                    <Eye className="h-4 w-4" />
-                    <span>Preview AM2E V1</span>
+                    <span>{checklistPreview.label}</span>
                   </button>
                 </div>
               </div>
@@ -1224,47 +1227,18 @@ const displayChecklistSections = useMemo(() => {
         </div>
       ) : null}
 
-      {/* AM2 Checklist Preview Modal */}
-      {showChecklistPreview && am2ChecklistResponse && (
+      {showChecklistPreview && rawFlowData ? (
         <ChecklistPreviewModal
           isOpen={showChecklistPreview}
           onClose={() => setShowChecklistPreview(false)}
-          templateId="am2-checklist"
+          templateId={checklistPreview.templateId}
           booking={booking}
           candidate={realCandidate}
           flowData={checklistFlowData}
           courseData={rawCourseData}
-          title="AM2 Checklist Preview"
+          title={checklistPreview.title}
         />
-      )}
-
-      {/* AM2E Checklist Preview Modal */}
-      {showAm2ePreview && am2eChecklistResponse && (
-        <ChecklistPreviewModal
-          isOpen={showAm2ePreview}
-          onClose={() => setShowAm2ePreview(false)}
-          templateId="net-am2e-full-candidate-checklist"
-          booking={booking}
-          candidate={realCandidate}
-          flowData={checklistFlowData}
-          courseData={rawCourseData}
-          title="AM2E Checklist Preview"
-        />
-      )}
-
-      {/* AM2E V1 Checklist Preview Modal */}
-      {showAm2eV1Preview && am2eV1ChecklistResponse && (
-        <ChecklistPreviewModal
-          isOpen={showAm2eV1Preview}
-          onClose={() => setShowAm2eV1Preview(false)}
-          templateId="am2e-v1-checklist"
-          booking={booking}
-          candidate={realCandidate}
-          flowData={checklistFlowData}
-          courseData={rawCourseData}
-          title="AM2E V1 Checklist Preview"
-        />
-      )}
+      ) : null}
 
       {/* NET Registration Preview Modal */}
       {showNetRegPreview ? (

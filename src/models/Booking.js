@@ -33,6 +33,11 @@ const bookingCourseSnapshotSchema = new mongoose.Schema(
       maxlength: 150,
       default: "",
     },
+    assessmentVariant: {
+      type: String,
+      enum: ["am2", "am2e", "am2e-v1"],
+      default: "am2",
+    },
     location: {
       type: String,
       trim: true,

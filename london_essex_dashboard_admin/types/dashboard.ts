@@ -535,6 +535,8 @@ export type AdminCandidatesResponse = {
 export type AdminBooking = {
   id: string;
   bookingNumber: string;
+  checklistVariant?: string;
+  assessmentVariant?: string;
   status: string;
   applicationStatus?: "under_review" | "approved" | string;
   paymentStatus: string;
@@ -563,6 +565,7 @@ export type AdminBooking = {
     duration: string;
     location: string;
     qualification: string;
+    assessmentVariant?: string;
     thumbnailUrl: string;
     price: number;
     currency: string;
@@ -591,6 +594,41 @@ export type AdminBooking = {
     email: string;
     role: string;
   };
+};
+
+export type BookingChecklistVariantMetadata = {
+  checklistVariant: string;
+  assessmentVariant: string;
+  templateId: string;
+  title: string;
+  description: string;
+  resolvedFrom: {
+    source: string;
+    selectedQuestionId: string;
+    selectedAnswerId: string;
+    selectedAnswerLabel: string;
+  };
+  pdfExport: {
+    checklistVariant: string;
+    assessmentVariant: string;
+    templateId: string;
+    title: string;
+    hasSavedResponses: boolean;
+    bookingChecklistUrl: string;
+    courseFlowUrl: string;
+  };
+};
+
+export type BookingChecklistFlowResponse = {
+  course: Record<string, any>;
+  flow: Record<string, any>;
+  checklistVariant: string;
+  assessmentVariant: string;
+  resolvedFrom?: Record<string, any>;
+  pdfExport?: Record<string, any>;
+  availableVariants?: Array<Record<string, any>>;
+  coverage?: Record<string, any>;
+  eligibilityRouting?: Record<string, any>;
 };
 
 export type AdminBookingsResponse = {
@@ -775,6 +813,9 @@ export type AdminBookingDetail = AdminBooking & {
     knowledge: ChecklistBooleanMap;
     experience: ChecklistBooleanMap;
   }>;
+  checklistVariantMetadata?: BookingChecklistVariantMetadata;
+  checklistFlow?: BookingChecklistFlowResponse;
+  pdfExport?: BookingChecklistVariantMetadata["pdfExport"];
 };
 
 export type AdminBookingDetailResponse = {

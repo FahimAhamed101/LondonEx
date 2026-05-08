@@ -4,6 +4,7 @@ const Course = require("../models/Course");
 const Booking = require("../models/Booking");
 
 const COURSE_STATUSES = ["available", "upcoming", "archived"];
+const ASSESSMENT_VARIANTS = ["am2", "am2e", "am2e-v1"];
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -205,6 +206,11 @@ function hasAnyPayloadKey(payload, keys) {
   return keys.some((key) => Object.prototype.hasOwnProperty.call(payload, key));
 }
 
+function normalizeAssessmentVariant(value) {
+  const normalizedValue = normalizeString(value).toLowerCase();
+  return ASSESSMENT_VARIANTS.includes(normalizedValue) ? normalizedValue : "";
+}
+
 function parseDateValue(value, label) {
   const normalizedValue = normalizeString(value);
 
@@ -257,6 +263,7 @@ function buildCoursePayload(payload, options = {}) {
   const { partial = false } = options;
   const titleKeys = ["title", "courseName", "name"];
   const totalSeatsKeys = ["totalSeats", "totalSeat", "seatCount", "seats", "seat", "total_seats"];
+  const assessmentVariantKeys = ["assessmentVariant", "assessment_variant", "checklistVariant", "variant"];
 
   const title = normalizeString(getFirstPayloadValue(payload, titleKeys));
   const customSlug = normalizeString(payload.slug);
@@ -288,6 +295,8 @@ function buildCoursePayload(payload, options = {}) {
   const galleryImages = normalizeStringArray(payload.galleryImages, 8);
   const bookNowUrl = normalizeString(payload.bookNowUrl);
   const totalSeats = normalizeNumber(getFirstPayloadValue(payload, totalSeatsKeys), 0);
+  const rawAssessmentVariant = normalizeString(getFirstPayloadValue(payload, assessmentVariantKeys));
+  const assessmentVariant = normalizeAssessmentVariant(rawAssessmentVariant);
   const currency = normalizeString(payload.currency).toUpperCase() || "GBP";
   const tags = normalizeTags(payload.tags);
   const detailSections = normalizeDetailSections(payload.detailSections);
@@ -389,6 +398,14 @@ function buildCoursePayload(payload, options = {}) {
     }
 
     courseData.qualification = qualification;
+  }
+
+  if (hasAnyPayloadKey(payload, assessmentVariantKeys) || !partial) {
+    if (rawAssessmentVariant && !assessmentVariant) {
+      return { error: "Assessment variant must be one of am2, am2e, or am2e-v1" };
+    }
+
+    courseData.assessmentVariant = assessmentVariant || "am2";
   }
 
   if (
@@ -632,6 +649,7 @@ function mapCourseSummary(course) {
     duration: course.duration,
     price: course.price,
     currency: course.currency,
+    assessmentVariant: normalizeAssessmentVariant(course.assessmentVariant) || "am2",
     thumbnailUrl: primaryImage,
     tags: course.tags,
     isPublished: course.isPublished,
@@ -1460,6 +1478,7 @@ function mapAdminCourseDetail(course, bookedSeats = 0) {
       sessionDate: formatDateOnly(course.sessionDate),
       timeSlot: course.timeSlot || "",
       totalSeats: Number.isFinite(course.totalSeats) ? course.totalSeats : 0,
+      assessmentVariant: normalizeAssessmentVariant(course.assessmentVariant) || "am2",
     },
   };
 }
@@ -2114,6 +2133,59 @@ async function updateCourse(req, res, next) {
   }
 }
 
+async function deleteCourse(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course id",
+      });
+    }
+
+    const course = await Course.findById(id);
+
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found",
+      });
+    }
+
+    const linkedBookingsCount = await Booking.countDocuments({ course: course._id });
+
+    if (linkedBookingsCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Course cannot be deleted while bookings are linked to it",
+      });
+    }
+
+    await Course.updateMany(
+      { sourceCourse: course._id },
+      {
+        $set: {
+          sourceCourse: null,
+          sourceCourseName: "",
+        },
+      }
+    );
+
+    await course.deleteOne();
+
+    return res.status(200).json({
+      success: true,
+      message: "Course deleted successfully",
+      data: {
+        courseId: id,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   buildCandidateRegistrationForm,
   buildAssessmentRegistrationForm,
@@ -2135,4 +2207,5 @@ module.exports = {
   createCourse,
   getAdminCourseById,
   updateCourse,
+  deleteCourse,
 };

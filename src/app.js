@@ -86,8 +86,8 @@ app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
 app.use("/api/stripe", stripeRoutes);
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/api/health", (req, res) => {

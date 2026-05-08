@@ -2,6 +2,8 @@ const express = require("express");
 
 const {
   createBooking,
+  getChecklistFlowByCourseId,
+  getChecklistVariantByCourseId,
   getAm2ChecklistFlowByCourseId,
   getAm2eChecklistFlowByCourseId,
   getAm2eV1ChecklistFlowByCourseId,
@@ -45,6 +47,8 @@ const router = express.Router();
 
 router.get("/provider-signature/:token", getTrainingProviderSignatureByToken);
 router.post("/provider-signature/:token", submitTrainingProviderSignatureByToken);
+router.get("/checklist-flow", getChecklistFlowByCourseId);
+router.get("/checklist-variant", getChecklistVariantByCourseId);
 router.get("/am2-checklist-flow", getAm2ChecklistFlowByCourseId);
 router.get("/am2e-checklist-flow", getAm2eChecklistFlowByCourseId);
 router.get("/am2e-v1-checklist-flow", getAm2eV1ChecklistFlowByCourseId);

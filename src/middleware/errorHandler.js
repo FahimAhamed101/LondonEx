@@ -22,6 +22,17 @@ function errorHandler(error, req, res, next) {
     });
   }
 
+  if (
+    error &&
+    (error.message === "Invalid image data URL" ||
+      error.message === "Image size must be 5MB or smaller")
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+
   if (error && error.message === "Only PDF, JPG, PNG, and WEBP uploads are allowed") {
     return res.status(400).json({
       success: false,

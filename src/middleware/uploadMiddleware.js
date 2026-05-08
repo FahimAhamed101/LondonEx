@@ -3,6 +3,15 @@ const multer = require("multer");
 const { uploadBufferToCloudinary } = require("../utils/cloudinary");
 
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg"]);
+const maxImageUploadSize = 5 * 1024 * 1024;
+const maxImageFieldSize = 8 * 1024 * 1024;
+const inlineCourseImageFields = ["thumbnailUrl", "file", "image", "courseImage", "thumbnail"];
+const imageExtensionsByMimeType = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
 const allowedBookingMimeTypes = new Set([
   "application/pdf",
   "image/jpeg",
@@ -14,7 +23,8 @@ const allowedBookingMimeTypes = new Set([
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024,
+    fileSize: maxImageUploadSize,
+    fieldSize: maxImageFieldSize,
   },
   fileFilter(req, file, callback) {
     if (!allowedMimeTypes.has(file.mimetype)) {
@@ -57,6 +67,81 @@ async function uploadFileToCloudinary(file, folder, resourceType = "image") {
   };
 }
 
+function getStringFieldValue(body, fieldName) {
+  const value = body?.[fieldName];
+
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0].trim() : "";
+  }
+
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function parseInlineImageDataUrl(value) {
+  if (!value.startsWith("data:")) {
+    return null;
+  }
+
+  const match = value.match(/^data:([^;,]+);base64,(.+)$/s);
+
+  if (!match) {
+    throw new Error("Invalid image data URL");
+  }
+
+  const mimeType = match[1].toLowerCase();
+
+  if (!allowedMimeTypes.has(mimeType)) {
+    throw new Error("Only JPG, PNG, and WEBP image uploads are allowed");
+  }
+
+  const base64Value = match[2].replace(/\s/g, "");
+
+  if (!base64Value || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64Value)) {
+    throw new Error("Invalid image data URL");
+  }
+
+  const buffer = Buffer.from(base64Value, "base64");
+
+  if (!buffer.length) {
+    throw new Error("Invalid image data URL");
+  }
+
+  if (buffer.length > maxImageUploadSize) {
+    throw new Error("Image size must be 5MB or smaller");
+  }
+
+  return {
+    buffer,
+    mimetype: mimeType,
+    originalname: `course-image.${imageExtensionsByMimeType[mimeType] || "jpg"}`,
+  };
+}
+
+async function uploadInlineCourseImage(req) {
+  if (req.uploadedImageUrl) {
+    return;
+  }
+
+  for (const fieldName of inlineCourseImageFields) {
+    const fieldValue = getStringFieldValue(req.body, fieldName);
+    const inlineImage = fieldValue ? parseInlineImageDataUrl(fieldValue) : null;
+
+    if (!inlineImage) {
+      continue;
+    }
+
+    const uploadResult = await uploadFileToCloudinary(
+      inlineImage,
+      "londonessexelec/courses",
+      "image"
+    );
+
+    req.uploadedImageUrl = uploadResult.fileUrl;
+    req.body.thumbnailUrl = uploadResult.fileUrl;
+    return;
+  }
+}
+
 function uploadCourseImage(req, res, next) {
   imageUpload.fields([
     { name: "file", maxCount: 1 },
@@ -83,6 +168,8 @@ function uploadCourseImage(req, res, next) {
         );
         req.uploadedImageUrl = uploadResult.fileUrl;
       }
+
+      await uploadInlineCourseImage(req);
 
       return next();
     } catch (uploadError) {
