@@ -73,6 +73,12 @@ const courseSchema = new mongoose.Schema(
       maxlength: 150,
       default: "",
     },
+    assessmentVariant: {
+      type: String,
+      enum: ["am2", "am2e", "am2e-v1"],
+      default: "am2",
+      required: true,
+    },
     sourceCourse: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Course",

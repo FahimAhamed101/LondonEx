@@ -191,6 +191,20 @@ function normalizeObjectId(value) {
   return normalizedValue && mongoose.isValidObjectId(normalizedValue) ? normalizedValue : "";
 }
 
+function getFirstPayloadValue(payload, keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(payload, key)) {
+      return payload[key];
+    }
+  }
+
+  return undefined;
+}
+
+function hasAnyPayloadKey(payload, keys) {
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(payload, key));
+}
+
 function parseDateValue(value, label) {
   const normalizedValue = normalizeString(value);
 
@@ -241,8 +255,10 @@ function buildScheduleLabel({ schedule, sessionDate, timeSlot, duration }) {
 
 function buildCoursePayload(payload, options = {}) {
   const { partial = false } = options;
+  const titleKeys = ["title", "courseName", "name"];
+  const totalSeatsKeys = ["totalSeats", "totalSeat", "seatCount", "seats", "seat", "total_seats"];
 
-  const title = normalizeString(payload.title);
+  const title = normalizeString(getFirstPayloadValue(payload, titleKeys));
   const customSlug = normalizeString(payload.slug);
   const status = normalizeString(payload.status).toLowerCase();
   const description = normalizeString(payload.description);
@@ -271,7 +287,7 @@ function buildCoursePayload(payload, options = {}) {
   const thumbnailUrl = normalizeString(payload.thumbnailUrl);
   const galleryImages = normalizeStringArray(payload.galleryImages, 8);
   const bookNowUrl = normalizeString(payload.bookNowUrl);
-  const totalSeats = normalizeNumber(payload.totalSeats, 0);
+  const totalSeats = normalizeNumber(getFirstPayloadValue(payload, totalSeatsKeys), 0);
   const currency = normalizeString(payload.currency).toUpperCase() || "GBP";
   const tags = normalizeTags(payload.tags);
   const detailSections = normalizeDetailSections(payload.detailSections);
@@ -282,7 +298,7 @@ function buildCoursePayload(payload, options = {}) {
     return { error: sessionDateResult.error };
   }
 
-  if (!partial || Object.prototype.hasOwnProperty.call(payload, "title")) {
+  if (!partial || hasAnyPayloadKey(payload, titleKeys)) {
     if (!title) {
       return { error: "Title is required" };
     }
@@ -491,7 +507,7 @@ function buildCoursePayload(payload, options = {}) {
     courseData.price = price;
   }
 
-  if (Object.prototype.hasOwnProperty.call(payload, "totalSeats") || !partial) {
+  if (hasAnyPayloadKey(payload, totalSeatsKeys) || !partial) {
     if (totalSeats < 0 || !Number.isInteger(totalSeats)) {
       return { error: "Total seats must be a non-negative integer" };
     }

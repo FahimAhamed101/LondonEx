@@ -61,6 +61,7 @@ function uploadCourseImage(req, res, next) {
   imageUpload.fields([
     { name: "file", maxCount: 1 },
     { name: "image", maxCount: 1 },
+    { name: "courseImage", maxCount: 1 },
     { name: "thumbnail", maxCount: 1 },
   ])(req, res, async (error) => {
     if (error) {
@@ -68,7 +69,11 @@ function uploadCourseImage(req, res, next) {
     }
 
     try {
-      const uploadedFile = req.files?.file?.[0] || req.files?.image?.[0] || req.files?.thumbnail?.[0];
+      const uploadedFile =
+        req.files?.file?.[0] ||
+        req.files?.image?.[0] ||
+        req.files?.courseImage?.[0] ||
+        req.files?.thumbnail?.[0];
 
       if (uploadedFile) {
         const uploadResult = await uploadFileToCloudinary(
