@@ -1,186 +1,569 @@
 {
   "info": {
-    "name": "London Essex Booking Checklist APIs",
+    "name": "London Essex Admin APIs",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:5000"
-    },
-    {
-      "key": "adminToken",
-      "value": "YOUR_ADMIN_JWT"
-    },
-    {
-      "key": "bookingId",
-      "value": "69fcf4b1f72dbdb50e33b79b"
-    },
-    {
-      "key": "courseId",
-      "value": "YOUR_COURSE_ID"
-    },
-    {
-      "key": "checklistVariant",
-      "value": "am2"
-    }
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "adminToken", "value": "YOUR_ADMIN_JWT" },
+    { "key": "bookingId", "value": "YOUR_BOOKING_ID" },
+    { "key": "courseId", "value": "YOUR_COURSE_ID" },
+    { "key": "candidateId", "value": "YOUR_CANDIDATE_ID" },
+    { "key": "ticketId", "value": "YOUR_TICKET_ID" },
+    { "key": "messageId", "value": "YOUR_MESSAGE_ID" },
+    { "key": "teamMemberId", "value": "YOUR_TEAM_MEMBER_ID" },
+    { "key": "checklistVariant", "value": "am2" }
   ],
   "item": [
     {
-      "name": "Get Admin Booking Detail",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{adminToken}}",
-            "type": "text"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/api/admin/bookings/{{bookingId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "admin",
-            "bookings",
-            "{{bookingId}}"
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Admin Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "dashboard"]
+            },
+            "description": "Returns stats (totalCandidates, pendingReviews, approved, courseBookings), runningCourse progress, recentActivity (signups + payments), systemActivity (checklist submissions), and upcomingCourse list."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Dashboard fetched', () => pm.response.to.have.status(200));",
+                  "pm.test('Has stats', () => pm.expect(json.data.stats).to.have.keys(['totalCandidates','pendingReviews','approved','courseBookings']));",
+                  "pm.test('Has recentActivity array', () => pm.expect(json.data.recentActivity).to.be.an('array'));",
+                  "pm.test('Has systemActivity', () => pm.expect(json.data.systemActivity.items).to.be.an('array'));",
+                  "pm.test('Has upcomingCourse array', () => pm.expect(json.data.upcomingCourse).to.be.an('array'));"
+                ]
+              }
+            }
           ]
         }
-      },
-      "event": [
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const json = pm.response.json();",
-              "const booking = json.data.booking;",
-              "",
-              "pm.collectionVariables.set('courseId', booking.course.id);",
-              "pm.collectionVariables.set(",
-              "  'checklistVariant',",
-              "  booking.checklistVariantMetadata?.checklistVariant ||",
-              "    booking.checklistVariant ||",
-              "    booking.course.assessmentVariant ||",
-              "    'am2'",
-              ");",
-              "",
-              "pm.test('Booking fetched', function () {",
-              "  pm.response.to.have.status(200);",
-              "});",
-              "",
-              "pm.test('Only one checklist variant exists in booking flow', function () {",
-              "  const variants = booking.checklistFlow?.availableVariants || [];",
-              "  pm.expect(variants.length).to.eql(1);",
-              "  pm.expect(variants[0].variant).to.eql(pm.collectionVariables.get('checklistVariant'));",
-              "});"
-            ]
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"]
+            }
           }
         }
       ]
     },
     {
-      "name": "Unified Checklist Flow",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/bookings/checklist-flow?courseId={{courseId}}&variant={{checklistVariant}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "bookings",
-            "checklist-flow"
-          ],
-          "query": [
-            {
-              "key": "courseId",
-              "value": "{{courseId}}"
+      "name": "Candidates",
+      "item": [
+        {
+          "name": "List Candidates",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/candidates?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "candidates"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "courseId", "value": "", "disabled": true },
+                { "key": "stuckOnly", "value": "false", "disabled": true },
+                { "key": "sortBy", "value": "submitted", "disabled": true },
+                { "key": "sortOrder", "value": "desc", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Candidate By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/candidates/{{candidateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "candidates", "{{candidateId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Submissions",
+      "item": [
+        {
+          "name": "List Submissions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/submissions?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "submissions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "status", "value": "", "disabled": true },
+                { "key": "courseId", "value": "", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "List Courses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses"]
+            }
+          }
+        },
+        {
+          "name": "List Course Source Options",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/options",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "options"]
+            }
+          }
+        },
+        {
+          "name": "Get Course By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Course",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "AM2 Electrical Assessment", "type": "text" },
+                { "key": "slug", "value": "am2-electrical-assessment", "type": "text" },
+                { "key": "schedule", "value": "Weekdays", "type": "text" },
+                { "key": "shortDescription", "value": "AM2 course short description", "type": "text" },
+                { "key": "price", "value": "1200", "type": "text" },
+                { "key": "assessmentVariant", "value": "am2", "type": "text" },
+                { "key": "status", "value": "available", "type": "text" },
+                { "key": "image", "src": [], "type": "file", "disabled": true }
+              ]
             },
-            {
-              "key": "variant",
-              "value": "{{checklistVariant}}"
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses"]
             }
-          ]
+          }
+        },
+        {
+          "name": "Update Course",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Updated Course Title", "type": "text" },
+                { "key": "status", "value": "available", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Course",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "AM2 Checklist Flow",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/bookings/am2-checklist-flow?courseId={{courseId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "bookings",
-            "am2-checklist-flow"
-          ],
-          "query": [
-            {
-              "key": "courseId",
-              "value": "{{courseId}}"
+      "name": "Team",
+      "item": [
+        {
+          "name": "List Team Members",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/team",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "team"]
             }
-          ]
+          }
+        },
+        {
+          "name": "Get Team Member By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/team/{{teamMemberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "team", "{{teamMemberId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Team Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "John Doe", "type": "text" },
+                { "key": "role", "value": "Assessor", "type": "text" },
+                { "key": "image", "src": [], "type": "file", "disabled": true }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/team",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "team"]
+            }
+          }
+        },
+        {
+          "name": "Update Team Member",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "Updated Name", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/team/{{teamMemberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "team", "{{teamMemberId}}"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "AM2E Checklist Flow",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/bookings/am2e-checklist-flow?courseId={{courseId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "bookings",
-            "am2e-checklist-flow"
-          ],
-          "query": [
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "List Bookings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "bookings"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Booking By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings/{{bookingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "bookings", "{{bookingId}}"]
+            }
+          },
+          "event": [
             {
-              "key": "courseId",
-              "value": "{{courseId}}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const booking = json.data.booking;",
+                  "pm.collectionVariables.set('courseId', booking.course.id);",
+                  "pm.collectionVariables.set('checklistVariant', booking.checklistVariantMetadata?.checklistVariant || booking.checklistVariant || booking.course.assessmentVariant || 'am2');",
+                  "pm.test('Booking fetched', () => pm.response.to.have.status(200));"
+                ]
+              }
             }
           ]
+        },
+        {
+          "name": "Update Booking (Approve)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\",\n  \"paymentStatus\": \"paid\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings/{{bookingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "bookings", "{{bookingId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Booking (Reject)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings/{{bookingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "bookings", "{{bookingId}}"]
+            }
+          }
         }
-      }
+      ]
     },
     {
-      "name": "AM2E V1 Checklist Flow",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/bookings/am2e-v1-checklist-flow?courseId={{courseId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "bookings",
-            "am2e-v1-checklist-flow"
-          ],
-          "query": [
-            {
-              "key": "courseId",
-              "value": "{{courseId}}"
+      "name": "Support",
+      "item": [
+        {
+          "name": "Get Support Screen",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "support"]
             }
-          ]
+          }
+        },
+        {
+          "name": "List Support Tickets",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "support", "tickets"]
+            }
+          }
+        },
+        {
+          "name": "Get Support Ticket By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets/{{ticketId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "support", "tickets", "{{ticketId}}"]
+            }
+          }
+        },
+        {
+          "name": "Reply To Support Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Thank you for contacting us. We will look into this shortly.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets/{{ticketId}}/replies",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "support", "tickets", "{{ticketId}}", "replies"]
+            }
+          }
+        },
+        {
+          "name": "Update Support Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/support/tickets/{{ticketId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "support", "tickets", "{{ticketId}}"]
+            }
+          }
         }
-      }
+      ]
+    },
+    {
+      "name": "Contact Messages",
+      "item": [
+        {
+          "name": "List Contact Messages",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/contact/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "contact", "messages"]
+            }
+          }
+        },
+        {
+          "name": "Get Contact Message By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/contact/messages/{{messageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "contact", "messages", "{{messageId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Contact Message",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"read\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/contact/messages/{{messageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "contact", "messages", "{{messageId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Checklist Flows",
+      "item": [
+        {
+          "name": "Unified Checklist Flow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/checklist-flow?courseId={{courseId}}&variant={{checklistVariant}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "checklist-flow"],
+              "query": [
+                { "key": "courseId", "value": "{{courseId}}" },
+                { "key": "variant", "value": "{{checklistVariant}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM2 Checklist Flow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/am2-checklist-flow?courseId={{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "am2-checklist-flow"],
+              "query": [{ "key": "courseId", "value": "{{courseId}}" }]
+            }
+          }
+        },
+        {
+          "name": "AM2E Checklist Flow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/am2e-checklist-flow?courseId={{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "am2e-checklist-flow"],
+              "query": [{ "key": "courseId", "value": "{{courseId}}" }]
+            }
+          }
+        },
+        {
+          "name": "AM2E V1 Checklist Flow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/am2e-v1-checklist-flow?courseId={{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "am2e-v1-checklist-flow"],
+              "query": [{ "key": "courseId", "value": "{{courseId}}" }]
+            }
+          }
+        }
+      ]
     }
   ]
 }

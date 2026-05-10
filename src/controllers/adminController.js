@@ -852,55 +852,212 @@ async function getDashboard(req, res, next) {
       recentSubmissions,
       recentBookingsForActivity,
       recentCourses,
-    ] =
-      await Promise.all([
-        User.countDocuments(),
-        User.countDocuments({ role: "admin" }),
-        Course.countDocuments(),
-        Course.countDocuments({ status: "available", isPublished: true }),
-        Booking.countDocuments(),
-        Booking.countDocuments({ status: "confirmed", "payment.status": "paid" }),
-        Booking.countDocuments({
-          $or: [{ status: "pending_payment" }, { "payment.status": "failed" }],
-        }),
-        User.find()
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .select("name email role createdAt"),
-        Booking.find()
-          .populate("user", "name email")
-          .sort({ createdAt: -1 })
-          .limit(10),
-        Booking.find()
-          .populate("user", "name email")
-          .sort({ updatedAt: -1, createdAt: -1 })
-          .limit(10),
-        Course.find()
-          .sort({ updatedAt: -1, createdAt: -1 })
-          .limit(5)
-          .select("title status updatedAt"),
-      ]);
-
-    const revenue = await Booking.aggregate([
-      {
-        $match: {
-          status: "confirmed",
-          "payment.status": "paid",
-        },
-      },
-      {
-        $group: {
-          _id: "$payment.currency",
-          totalRevenue: { $sum: "$payment.amount" },
-        },
-      },
+    ] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ role: "admin" }),
+      Course.countDocuments(),
+      Course.countDocuments({ status: "available", isPublished: true }),
+      Booking.countDocuments(),
+      Booking.countDocuments({ status: "confirmed", "payment.status": "paid" }),
+      Booking.countDocuments({
+        $or: [{ status: "pending_payment" }, { "payment.status": "failed" }],
+      }),
+      User.find().sort({ createdAt: -1 }).limit(5).select("name email role createdAt"),
+      Booking.find().populate("user", "name email").sort({ createdAt: -1 }).limit(10),
+      Booking.find()
+        .populate("user", "name email")
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(10),
+      Course.find()
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(5)
+        .select("title status updatedAt"),
     ]);
 
+    // Revenue aggregate
+    const revenue = await Booking.aggregate([
+      { $match: { status: "confirmed", "payment.status": "paid" } },
+      { $group: { _id: "$payment.currency", totalRevenue: { $sum: "$payment.amount" } } },
+    ]);
     const revenueSummary = revenue.map((item) => ({
       currency: item._id || "GBP",
       totalRevenue: item.totalRevenue,
     }));
 
+    // ── Stats ─────────────────────────────────────────────────────────────────
+    const totalCandidates = totalUsers - adminUsers;
+    const pendingReviews = await Booking.countDocuments({
+      applicationStatus: { $in: ["submitted", "under_review"] },
+    });
+    const stats = {
+      totalCandidates,
+      pendingReviews,
+      approved: confirmedBookings,
+      courseBookings: totalBookings,
+    };
+
+    // ── Running Course (most recent confirmed booking + progress) ─────────────
+    let runningCourse = null;
+    const latestConfirmedBooking = await Booking.findOne({
+      status: "confirmed",
+      "payment.status": "paid",
+    })
+      .populate("user", "name email")
+      .sort({ updatedAt: -1, createdAt: -1 });
+
+    if (latestConfirmedBooking) {
+      const progress = calculateCandidateProgress(latestConfirmedBooking);
+      const candidateName =
+        latestConfirmedBooking.personalDetails?.fullName ||
+        latestConfirmedBooking.user?.name ||
+        "Unknown Candidate";
+      runningCourse = {
+        bookingId: latestConfirmedBooking._id,
+        bookingNumber: latestConfirmedBooking.bookingNumber,
+        candidate: {
+          name: candidateName,
+          email:
+            latestConfirmedBooking.personalDetails?.email ||
+            latestConfirmedBooking.user?.email ||
+            "",
+          initial: getInitial(candidateName),
+          avatarTone: getAvatarTone(candidateName),
+        },
+        course: {
+          title: latestConfirmedBooking.courseSnapshot?.title || "",
+          slug: latestConfirmedBooking.courseSnapshot?.slug || "",
+          assessmentVariant:
+            latestConfirmedBooking.courseSnapshot?.assessmentVariant || "am2",
+        },
+        session: {
+          startDateTime: latestConfirmedBooking.session?.startDateTime || null,
+          endDateTime: latestConfirmedBooking.session?.endDateTime || null,
+          location: latestConfirmedBooking.session?.location || "",
+          startLabel: formatDisplayDateTime(latestConfirmedBooking.session?.startDateTime),
+        },
+        progress,
+        label: "AM2 Readiness Progress",
+        viewUrl: `/admin/candidates/${latestConfirmedBooking._id}`,
+        apiUrl: `/api/admin/candidates/${latestConfirmedBooking._id}`,
+      };
+    }
+
+    // ── Recent Activity (user signups + payment received) ────────────────────
+    const signupActivities = recentUsers.map((user) => ({
+      id: `user-${user._id}`,
+      type: "user_signup",
+      title: `${user.name} registered`,
+      subtitle: user.email,
+      occurredAt: user.createdAt,
+      relativeTime: formatRelativeTime(user.createdAt),
+      tone: "info",
+      icon: "user",
+    }));
+
+    const paymentActivities = recentSubmissions
+      .filter((b) => b.payment?.status === "paid")
+      .map((booking) => {
+        const candidateName =
+          booking.personalDetails?.fullName || booking.user?.name || "A candidate";
+        const amount = booking.payment?.amount || 0;
+        const currency = booking.payment?.currency || "GBP";
+        const paidAt = booking.payment?.paidAt || booking.updatedAt || booking.createdAt;
+        return {
+          id: `payment-${booking._id}`,
+          type: "payment_received",
+          title: `Payment received from ${candidateName}`,
+          subtitle: `${currency} ${amount.toFixed(2)} — ${booking.courseSnapshot?.title || ""}`,
+          occurredAt: paidAt,
+          relativeTime: formatRelativeTime(paidAt),
+          tone: "success",
+          icon: "payment",
+        };
+      });
+
+    const recentActivity = [...signupActivities, ...paymentActivities]
+      .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+      .slice(0, 8);
+
+    // ── System Activity (checklist submissions & booking events) ──────────────
+    const checklistActivities = recentSubmissions.map((booking) => {
+      const candidateName =
+        booking.personalDetails?.fullName || booking.user?.name || "A candidate";
+      let title = `${candidateName} submitted a checklist`;
+      let tone = "warning";
+      let type = "checklist_submitted";
+
+      if (booking.status === "cancelled") {
+        title = `${candidateName}'s booking was cancelled`;
+        tone = "danger";
+        type = "booking_cancelled";
+      } else if (booking.status === "confirmed" && booking.payment?.status === "paid") {
+        title = `${candidateName}'s application was approved`;
+        tone = "success";
+        type = "booking_approved";
+      }
+
+      const occurredAt =
+        booking.submittedAt ||
+        booking.confirmedAt ||
+        booking.cancelledAt ||
+        booking.updatedAt ||
+        booking.createdAt;
+
+      return {
+        id: `system-${booking._id}`,
+        type,
+        title,
+        subtitle: booking.courseSnapshot?.title || "",
+        occurredAt,
+        relativeTime: formatRelativeTime(occurredAt),
+        tone,
+        icon: "checklist",
+      };
+    });
+
+    const courseUpdateActivities = recentCourses.map((course) => ({
+      id: `course-${course._id}`,
+      type: "course_updated",
+      title: `Course updated: ${course.title}`,
+      subtitle: course.status,
+      occurredAt: course.updatedAt,
+      relativeTime: formatRelativeTime(course.updatedAt),
+      tone: "info",
+      icon: "course",
+    }));
+
+    const systemActivityItems = [...checklistActivities, ...courseUpdateActivities]
+      .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+      .slice(0, 8);
+
+    // ── Upcoming Courses ──────────────────────────────────────────────────────
+    const upcomingCourseDocs = await Course.find({
+      status: { $in: ["available", "upcoming"] },
+      isPublished: true,
+    })
+      .sort({ sessionDate: 1, createdAt: -1 })
+      .limit(3)
+      .select(
+        "title slug status schedule location sessionDate timeSlot price currency thumbnailUrl"
+      );
+
+    const upcomingCourse = upcomingCourseDocs.map((course) => ({
+      id: course._id,
+      title: course.title,
+      slug: course.slug,
+      status: course.status,
+      schedule: course.schedule,
+      location: course.location,
+      sessionDate: course.sessionDate,
+      sessionDateLabel: formatDisplayDateTime(course.sessionDate),
+      timeSlot: course.timeSlot,
+      price: course.price,
+      currency: course.currency || "GBP",
+      thumbnailUrl: course.thumbnailUrl,
+      viewUrl: `/admin/courses/${course._id}`,
+    }));
+
+    // ── Legacy activity feed (kept for backward compatibility) ────────────────
     const activityFeed = buildActivityFeed({
       recentUsers,
       recentBookings: recentBookingsForActivity,
@@ -911,10 +1068,20 @@ async function getDashboard(req, res, next) {
       success: true,
       message: "Admin dashboard data fetched successfully",
       data: {
+        // ── New UI-structured fields ──────────────────────────────────────────
+        stats,
+        runningCourse,
+        recentActivity,
+        systemActivity: {
+          title: "System Activity",
+          items: systemActivityItems,
+        },
+        upcomingCourse,
+        // ── Legacy fields (backward compatible) ───────────────────────────────
         summary: {
           totalUsers,
           adminUsers,
-          standardUsers: totalUsers - adminUsers,
+          standardUsers: totalCandidates,
           totalCourses,
           availableCourses,
           totalBookings,
@@ -948,10 +1115,6 @@ async function getDashboard(req, res, next) {
             url: "/admin/bookings",
           },
         ],
-        systemActivity: {
-          title: "System Activity",
-          items: activityFeed,
-        },
         recentUsers,
       },
     });
