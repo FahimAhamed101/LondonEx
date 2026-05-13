@@ -2222,14 +2222,8 @@ async function deleteCourse(req, res, next) {
       });
     }
 
-    const linkedBookingsCount = await Booking.countDocuments({ course: course._id });
-
-    if (linkedBookingsCount > 0) {
-      return res.status(409).json({
-        success: false,
-        message: "Course cannot be deleted while bookings are linked to it",
-      });
-    }
+    // Delete all bookings linked to this course (cascade delete)
+    await Booking.deleteMany({ course: course._id });
 
     await Course.updateMany(
       { sourceCourse: course._id },

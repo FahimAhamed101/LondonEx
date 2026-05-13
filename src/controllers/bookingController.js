@@ -2936,6 +2936,28 @@ function findBookingDocumentByType(booking, ...documentTypes) {
 }
 
 function buildDocumentRequirements(booking) {
+  const variant = getChecklistVariantForBooking(booking);
+
+  if (variant === "am2e" || variant === "am2e-v1") {
+    const requirements = buildAm2eVariantDocumentRequirements(variant);
+    return requirements.map((req) => {
+      const uploadedDoc = findBookingDocumentByType(booking, req.id);
+      return {
+        id: req.id,
+        title: req.title,
+        description: req.description,
+        acceptedFileTypes: req.acceptedFileTypes || ["pdf", "jpg", "jpeg", "png", "webp"],
+        uploaded: Boolean(uploadedDoc),
+        document: mapUploadedBookingDocument(uploadedDoc, req.id),
+        action: {
+          label: uploadedDoc ? "Replace" : "Upload",
+          method: "POST",
+          apiUrl: `/api/bookings/${booking._id}/flow/documents/upload`,
+        },
+      };
+    });
+  }
+
   const uploadedCertificate = findBookingDocumentByType(
     booking,
     "full_certificate",
