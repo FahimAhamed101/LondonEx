@@ -132,6 +132,39 @@
       "name": "Courses",
       "item": [
         {
+          "name": "Search Courses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/courses/search?q=Electrical&limit=8",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "courses", "search"],
+              "query": [
+                { "key": "q", "value": "Electrical" },
+                { "key": "limit", "value": "8" },
+                { "key": "page", "value": "1", "disabled": true },
+                { "key": "status", "value": "available", "disabled": true }
+              ]
+            },
+            "description": "Public course search for the home page search bar. Supports q or search, plus optional page, limit, and status. Returns matching courses and popular search chips."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Course search fetched', () => pm.response.to.have.status(200));",
+                  "pm.test('Has courses array', () => pm.expect(json.data.courses).to.be.an('array'));",
+                  "pm.test('Has popular search chips', () => pm.expect(json.data.search.popular).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "List Courses",
           "request": {
             "method": "GET",

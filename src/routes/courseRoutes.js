@@ -2,6 +2,7 @@ const express = require("express");
 
 const {
   listCourses,
+  searchCourses,
   getCourseDetails,
   getCourseCatalogScreen,
   getCourseDetailScreen,
@@ -17,6 +18,7 @@ const { requireAuth } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 router.get("/screen/catalog", getCourseCatalogScreen);
+router.get("/search", searchCourses);
 router.get("/:slug/screen", getCourseDetailScreen);
 
 router.use(requireAuth);

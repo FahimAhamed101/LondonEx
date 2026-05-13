@@ -5,6 +5,12 @@ const Booking = require("../models/Booking");
 
 const COURSE_STATUSES = ["available", "upcoming", "archived"];
 const ASSESSMENT_VARIANTS = ["am2", "am2e", "am2e-v1"];
+const POPULAR_COURSE_SEARCHES = [
+  { label: "Gas Engineer", query: "Gas Engineer" },
+  { label: "Electrical", query: "Electrical" },
+  { label: "Plumbing", query: "Plumbing" },
+  { label: "Renewables", query: "Renewables" },
+];
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -605,7 +611,7 @@ function buildCatalogFilter(query) {
     status: { $in: ["available", "upcoming"] },
   };
 
-  const search = normalizeString(query.search);
+  const search = normalizeString(query.search || query.q);
   const status = normalizeString(query.status).toLowerCase();
 
   if (status) {
@@ -621,7 +627,12 @@ function buildCatalogFilter(query) {
     filter.$or = [
       { title: searchRegex },
       { shortDescription: searchRegex },
+      { overview: searchRegex },
+      { description: searchRegex },
+      { qualification: searchRegex },
+      { audience: searchRegex },
       { schedule: searchRegex },
+      { location: searchRegex },
       { tags: searchRegex },
     ];
   }
@@ -633,6 +644,58 @@ function buildCatalogFilter(query) {
       status: status || null,
     },
   };
+}
+
+async function searchCourses(req, res, next) {
+  try {
+    const filterResult = buildCatalogFilter(req.query || {});
+    if (filterResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: filterResult.error,
+      });
+    }
+
+    const { filter, search, status } = filterResult.value;
+    const { page, limit, skip } = parsePagination({
+      ...(req.query || {}),
+      limit: req.query?.limit || 8,
+    });
+
+    const [courses, total] = await Promise.all([
+      Course.find(filter)
+        .sort({ order: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Course.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Course search results fetched successfully",
+      data: {
+        search: {
+          query: search,
+          placeholder: "Find a course...",
+          actionLabel: "Find Courses",
+          popular: POPULAR_COURSE_SEARCHES,
+        },
+        filters: {
+          search,
+          status,
+        },
+        courses: courses.map(mapCourseSummary),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 function mapCourseSummary(course) {
@@ -2192,6 +2255,7 @@ module.exports = {
   buildEmployerRegistrationForm,
   buildTrainingRegistrationForm,
   buildPrivacyRegistrationForm,
+  searchCourses,
   listCourses,
   getCourseDetails,
   getCourseCatalogScreen,

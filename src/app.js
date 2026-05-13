@@ -29,7 +29,7 @@ function parseOriginList(value) {
 
 const allowedOrigins = parseOriginList(
   process.env.CORS_ALLOWED_ORIGINS ||
-    "http://localhost:3003,http://127.0.0.1:3003,https://london-essex-dashboard-ia9s.vercel.app,https://london-essex-br36.vercel.app"
+    "http://localhost:3003,http://localhost:5173,http://127.0.0.1:3003,https://london-essex-dashboard-ia9s.vercel.app,https://london-essex-br36.vercel.app"
 );
 
 const allowedOriginPatterns = [

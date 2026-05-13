@@ -22,11 +22,19 @@ import type {
   Am2eChecklistFlowResponse,
   Am2eV1ChecklistFlowResponse,
   BookingDocumentsFlowResponse,
+  UserDashboardResponse,
 } from "@/types/dashboard";
 
 export const dashboardApi = baseApi.injectEndpoints({
   overrideExisting: process.env.NODE_ENV === "development",
   endpoints: (builder) => ({
+    getUserDashboard: builder.query<ApiResponse<UserDashboardResponse>, void>({
+      query: () => ({
+        url: "/bookings/dashboard",
+        method: "GET",
+      }),
+      providesTags: ["Bookings"],
+    }),
     getAdminCandidates: builder.query<
       ApiResponse<AdminCandidatesResponse>,
       {
@@ -281,6 +289,7 @@ export const dashboardApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetUserDashboardQuery,
   useGetAdminCandidatesQuery,
   useGetAdminBookingsQuery,
   useGetAdminBookingByIdQuery,

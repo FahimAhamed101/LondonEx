@@ -931,6 +931,143 @@ export type BookingDocumentsFlowResponse = {
   screen: Record<string, any>;
 };
 
+export type UserDashboardStatus = {
+  key: string;
+  label: string;
+  tone: DashboardTone;
+};
+
+export type UserDashboardAction = {
+  label: string;
+  url: string;
+  apiUrl?: string;
+};
+
+export type UserDashboardCourse = {
+  id: string;
+  title: string;
+  slug: string;
+  schedule: string;
+  duration: string;
+  location: string;
+  qualification: string;
+  assessmentVariant: string;
+  thumbnailUrl: string;
+  price: number;
+  currency: string;
+  displayPrice: string;
+  detailsUrl: string;
+};
+
+export type UserDashboardSession = {
+  startDateTime: string | null;
+  endDateTime: string | null;
+  displayDate: string;
+  displayTime: string;
+  displayDateTime: string;
+  location: string;
+};
+
+export type UserDashboardProgress = {
+  title: string;
+  trackLabel: string;
+  percentage: number;
+  percentageLabel: string;
+  status: UserDashboardStatus;
+  description: string;
+  milestones: {
+    personalDetails: boolean;
+    sessionDetails: boolean;
+    signedTerms: boolean;
+    payment: boolean;
+    confirmation: boolean;
+  };
+};
+
+export type UserDashboardTaskCard = {
+  id: string;
+  label: string;
+  summary: string;
+  description: string;
+  status: UserDashboardStatus;
+  action: UserDashboardAction;
+};
+
+export type UserDashboardBooking = {
+  id: string;
+  bookingNumber: string;
+  status: string;
+  paymentStatus: string;
+  statusBadge: UserDashboardStatus;
+  course: UserDashboardCourse;
+  session: UserDashboardSession;
+  progress: UserDashboardProgress;
+  cards: {
+    documents: UserDashboardTaskCard;
+    signatures: UserDashboardTaskCard;
+  };
+  action: UserDashboardAction;
+};
+
+export type UserDashboardUpcomingBooking = Omit<
+  UserDashboardBooking,
+  "paymentStatus" | "progress" | "cards"
+>;
+
+export type UserDashboardEmptyState = {
+  title: string;
+  description: string;
+  cta: UserDashboardAction | null;
+};
+
+export type UserDashboardActivity = {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  occurredAt: string;
+  relativeTime: string;
+  tone: DashboardTone;
+};
+
+export type UserDashboardResponse = {
+  dashboard: {
+    welcome: {
+      title: string;
+      subtitle: string;
+      user: {
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        initial: string;
+        avatarTone: string;
+      };
+    };
+    runningCourse: {
+      title: string;
+      booking: UserDashboardBooking | null;
+      emptyState: UserDashboardEmptyState | null;
+    };
+    upcomingCourse: {
+      title: string;
+      booking: UserDashboardUpcomingBooking | null;
+      emptyState: UserDashboardEmptyState | null;
+    };
+    recentActivity: {
+      title: string;
+      items: UserDashboardActivity[];
+      emptyState: Omit<UserDashboardEmptyState, "cta"> | null;
+    };
+    summary: {
+      totalBookings: number;
+      activeBookings: number;
+      completedBookings: number;
+      cancelledBookings: number;
+    };
+  };
+};
+
 export type DashboardActionLink = {
   label: string;
   badge?: string;
