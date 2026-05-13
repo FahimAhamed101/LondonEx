@@ -142,6 +142,7 @@ async function uploadInlineCourseImage(req) {
   }
 }
 
+// In uploadCourseImage, add this check:
 function uploadCourseImage(req, res, next) {
   imageUpload.fields([
     { name: "thumbnail", maxCount: 1 },
@@ -150,6 +151,8 @@ function uploadCourseImage(req, res, next) {
     { name: "courseImage", maxCount: 1 },
   ])(req, res, (error) => {
     if (error) {
+      // Log the actual multer error
+      console.error("[uploadCourseImage] multer error:", error.message, error.code);
       return next(error);
     }
 
@@ -164,20 +167,20 @@ function uploadCourseImage(req, res, next) {
           req.files?.courseImage?.[0];
 
         if (uploadedFile) {
+          console.log("[uploadCourseImage] uploading file:", uploadedFile.originalname, uploadedFile.size);
           const uploadResult = await uploadFileToCloudinary(
             uploadedFile,
             "londonessexelec/courses",
             "image"
           );
-
           req.uploadedImageUrl = uploadResult.fileUrl;
           req.body.thumbnailUrl = uploadResult.fileUrl;
         }
 
         await uploadInlineCourseImage(req);
-
         return next();
       } catch (uploadError) {
+        console.error("[uploadCourseImage] cloudinary/inline error:", uploadError.message);
         return next(uploadError);
       }
     })();
