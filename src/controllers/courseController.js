@@ -325,7 +325,9 @@ function buildCoursePayload(payload, options = {}) {
     courseData.title = title;
   }
 
-  if (!partial || Object.prototype.hasOwnProperty.call(payload, "slug") || courseData.title) {
+  // In partial mode: only update slug when explicitly provided in the payload.
+  // When only title changes, preserve the existing slug to avoid breaking bookings.
+  if (!partial || Object.prototype.hasOwnProperty.call(payload, "slug")) {
     const rawSlug = customSlug || title;
     const slug = slugify(rawSlug);
 
@@ -791,16 +793,17 @@ function applyUploadedImage(courseData, uploadedImageUrl, existingCourse) {
 }
 
 function formatDisplayPrice(amount, currency) {
+  const safeCurrency = typeof currency === "string" && currency.trim().length >= 3 ? currency.trim() : "GBP";
   try {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
-      currency: currency || "GBP",
+      currency: safeCurrency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount || 0);
   } catch (error) {
     const normalizedAmount = Number(amount || 0).toFixed(2);
-    return `${currency || "GBP"} ${normalizedAmount}`;
+    return `${safeCurrency} ${normalizedAmount}`;
   }
 }
 
@@ -2164,6 +2167,9 @@ async function updateCourse(req, res, next) {
 
     if (updates.slug) {
       updates.slug = await ensureUniqueSlug(updates.slug, course._id);
+    } else {
+      // If slug was not explicitly provided, remove any auto-derived slug to preserve the existing one
+      delete updates.slug;
     }
 
     Object.assign(course, updates);

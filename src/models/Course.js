@@ -191,12 +191,10 @@ const courseSchema = new mongoose.Schema(
   }
 );
 
-courseSchema.pre("validate", function ensureAssessmentVariant(next) {
+courseSchema.pre("validate", async function ensureAssessmentVariant() {
   if (!this.assessmentVariant) {
     this.assessmentVariant = "am2";
   }
-
-  next();
 });
 
 module.exports = mongoose.model("Course", courseSchema);

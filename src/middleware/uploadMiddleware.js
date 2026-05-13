@@ -1,6 +1,6 @@
 const multer = require("multer");
 
-const { uploadBufferToCloudinary } = require("../utils/cloudinary");
+const { uploadBufferToCloudinary, isCloudinaryConfigured } = require("../utils/cloudinary");
 
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/jpg"]);
 const maxImageUploadSize = 5 * 1024 * 1024;
@@ -167,17 +167,23 @@ function uploadCourseImage(req, res, next) {
           req.files?.courseImage?.[0];
 
         if (uploadedFile) {
-          console.log("[uploadCourseImage] uploading file:", uploadedFile.originalname, uploadedFile.size);
-          const uploadResult = await uploadFileToCloudinary(
-            uploadedFile,
-            "londonessexelec/courses",
-            "image"
-          );
-          req.uploadedImageUrl = uploadResult.fileUrl;
-          req.body.thumbnailUrl = uploadResult.fileUrl;
+          if (!isCloudinaryConfigured()) {
+            console.warn("[uploadCourseImage] Cloudinary not configured — skipping file upload.");
+          } else {
+            console.log("[uploadCourseImage] uploading file:", uploadedFile.originalname, uploadedFile.size);
+            const uploadResult = await uploadFileToCloudinary(
+              uploadedFile,
+              "londonessexelec/courses",
+              "image"
+            );
+            req.uploadedImageUrl = uploadResult.fileUrl;
+            req.body.thumbnailUrl = uploadResult.fileUrl;
+          }
         }
 
-        await uploadInlineCourseImage(req);
+        if (isCloudinaryConfigured()) {
+          await uploadInlineCourseImage(req);
+        }
         return next();
       } catch (uploadError) {
         console.error("[uploadCourseImage] cloudinary/inline error:", uploadError.message);
