@@ -150,10 +150,7 @@ function uploadCourseImage(req, res, next) {
     { name: "courseImage", maxCount: 1 },
   ])(req, res, (error) => {
     if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.message || "Image upload failed",
-      });
+      return next(error);
     }
 
     (async () => {
@@ -177,14 +174,11 @@ function uploadCourseImage(req, res, next) {
           req.body.thumbnailUrl = uploadResult.fileUrl;
         }
 
+        await uploadInlineCourseImage(req);
+
         return next();
       } catch (uploadError) {
-        console.error("Course image upload failed:", uploadError);
-
-        return res.status(400).json({
-          success: false,
-          message: uploadError.message || "Course image upload failed",
-        });
+        return next(uploadError);
       }
     })();
   });
