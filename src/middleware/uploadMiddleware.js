@@ -148,55 +148,64 @@ function uploadCourseImage(req, res, next) {
     { name: "image", maxCount: 1 },
     { name: "courseImage", maxCount: 1 },
     { name: "thumbnail", maxCount: 1 },
-  ])(req, res, async (error) => {
+  ])(req, res, (error) => {
     if (error) {
       return next(error);
     }
 
-    try {
-      const uploadedFile =
-        req.files?.file?.[0] ||
-        req.files?.image?.[0] ||
-        req.files?.courseImage?.[0] ||
-        req.files?.thumbnail?.[0];
+    (async () => {
+      try {
+        // Ensure req.files is initialized as an object
+        if (!req.files) {
+          req.files = {};
+        }
 
-      if (uploadedFile) {
-        const uploadResult = await uploadFileToCloudinary(
-          uploadedFile,
-          "londonessexelec/courses",
-          "image"
-        );
-        req.uploadedImageUrl = uploadResult.fileUrl;
+        const uploadedFile =
+          req.files?.file?.[0] ||
+          req.files?.image?.[0] ||
+          req.files?.courseImage?.[0] ||
+          req.files?.thumbnail?.[0];
+
+        if (uploadedFile) {
+          const uploadResult = await uploadFileToCloudinary(
+            uploadedFile,
+            "londonessexelec/courses",
+            "image"
+          );
+          req.uploadedImageUrl = uploadResult.fileUrl;
+        }
+
+        await uploadInlineCourseImage(req);
+
+        return next();
+      } catch (uploadError) {
+        return next(uploadError);
       }
-
-      await uploadInlineCourseImage(req);
-
-      return next();
-    } catch (uploadError) {
-      return next(uploadError);
-    }
+    })();
   });
 }
 
 function uploadBookingDocument(req, res, next) {
-  bookingDocumentUpload.single("file")(req, res, async (error) => {
+  bookingDocumentUpload.single("file")(req, res, (error) => {
     if (error) {
       return next(error);
     }
 
-    try {
-      if (req.file) {
-        req.uploadedDocument = await uploadFileToCloudinary(
-          req.file,
-          "londonessexelec/bookings/documents",
-          "auto"
-        );
-      }
+    (async () => {
+      try {
+        if (req.file) {
+          req.uploadedDocument = await uploadFileToCloudinary(
+            req.file,
+            "londonessexelec/bookings/documents",
+            "auto"
+          );
+        }
 
-      return next();
-    } catch (uploadError) {
-      return next(uploadError);
-    }
+        return next();
+      } catch (uploadError) {
+        return next(uploadError);
+      }
+    })();
   });
 }
 
@@ -206,30 +215,37 @@ function uploadBookingSignatureImage(req, res, next) {
     { name: "image", maxCount: 1 },
     { name: "signature", maxCount: 1 },
     { name: "candidateSignature", maxCount: 1 },
-  ])(req, res, async (error) => {
+  ])(req, res, (error) => {
     if (error) {
       return next(error);
     }
 
-    try {
-      const uploadedFile =
-        req.files?.file?.[0] ||
-        req.files?.image?.[0] ||
-        req.files?.signature?.[0] ||
-        req.files?.candidateSignature?.[0];
+    (async () => {
+      try {
+        // Ensure req.files is initialized as an object
+        if (!req.files) {
+          req.files = {};
+        }
 
-      if (uploadedFile) {
-        req.uploadedSignatureFile = await uploadFileToCloudinary(
-          uploadedFile,
-          "londonessexelec/bookings/signatures",
-          "image"
-        );
+        const uploadedFile =
+          req.files?.file?.[0] ||
+          req.files?.image?.[0] ||
+          req.files?.signature?.[0] ||
+          req.files?.candidateSignature?.[0];
+
+        if (uploadedFile) {
+          req.uploadedSignatureFile = await uploadFileToCloudinary(
+            uploadedFile,
+            "londonessexelec/bookings/signatures",
+            "image"
+          );
+        }
+
+        return next();
+      } catch (uploadError) {
+        return next(uploadError);
       }
-
-      return next();
-    } catch (uploadError) {
-      return next(uploadError);
-    }
+    })();
   });
 }
 
@@ -238,27 +254,34 @@ function uploadTeamImage(req, res, next) {
     { name: "file", maxCount: 1 },
     { name: "image", maxCount: 1 },
     { name: "photo", maxCount: 1 },
-  ])(req, res, async (error) => {
+  ])(req, res, (error) => {
     if (error) {
       return next(error);
     }
 
-    try {
-      const uploadedFile = req.files?.file?.[0] || req.files?.image?.[0] || req.files?.photo?.[0];
+    (async () => {
+      try {
+        // Ensure req.files is initialized as an object
+        if (!req.files) {
+          req.files = {};
+        }
 
-      if (uploadedFile) {
-        const uploadResult = await uploadFileToCloudinary(
-          uploadedFile,
-          "londonessexelec/team",
-          "image"
-        );
-        req.uploadedImageUrl = uploadResult.fileUrl;
+        const uploadedFile = req.files?.file?.[0] || req.files?.image?.[0] || req.files?.photo?.[0];
+
+        if (uploadedFile) {
+          const uploadResult = await uploadFileToCloudinary(
+            uploadedFile,
+            "londonessexelec/team",
+            "image"
+          );
+          req.uploadedImageUrl = uploadResult.fileUrl;
+        }
+
+        return next();
+      } catch (uploadError) {
+        return next(uploadError);
       }
-
-      return next();
-    } catch (uploadError) {
-      return next(uploadError);
-    }
+    })();
   });
 }
 
@@ -268,31 +291,38 @@ function uploadUserProfileImage(req, res, next) {
     { name: "image", maxCount: 1 },
     { name: "photo", maxCount: 1 },
     { name: "avatar", maxCount: 1 },
-  ])(req, res, async (error) => {
+  ])(req, res, (error) => {
     if (error) {
       return next(error);
     }
 
-    try {
-      const uploadedFile =
-        req.files?.file?.[0] ||
-        req.files?.image?.[0] ||
-        req.files?.photo?.[0] ||
-        req.files?.avatar?.[0];
+    (async () => {
+      try {
+        // Ensure req.files is initialized as an object
+        if (!req.files) {
+          req.files = {};
+        }
 
-      if (uploadedFile) {
-        const uploadResult = await uploadFileToCloudinary(
-          uploadedFile,
-          "londonessexelec/users/profile",
-          "image"
-        );
-        req.uploadedImageUrl = uploadResult.fileUrl;
+        const uploadedFile =
+          req.files?.file?.[0] ||
+          req.files?.image?.[0] ||
+          req.files?.photo?.[0] ||
+          req.files?.avatar?.[0];
+
+        if (uploadedFile) {
+          const uploadResult = await uploadFileToCloudinary(
+            uploadedFile,
+            "londonessexelec/users/profile",
+            "image"
+          );
+          req.uploadedImageUrl = uploadResult.fileUrl;
+        }
+
+        return next();
+      } catch (uploadError) {
+        return next(uploadError);
       }
-
-      return next();
-    } catch (uploadError) {
-      return next(uploadError);
-    }
+    })();
   });
 }
 
