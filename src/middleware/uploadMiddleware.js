@@ -143,26 +143,35 @@ async function uploadInlineCourseImage(req) {
 }
 
 function uploadCourseImage(req, res, next) {
+  const contentType = req.headers["content-type"] || "";
+
+  // Allow normal JSON PATCH without multer
+  if (!contentType.includes("multipart/form-data")) {
+    return next();
+  }
+
   imageUpload.fields([
-    { name: "file", maxCount: 1 },
     { name: "image", maxCount: 1 },
+    { name: "file", maxCount: 1 },
     { name: "courseImage", maxCount: 1 },
     { name: "thumbnail", maxCount: 1 },
   ])(req, res, (error) => {
     if (error) {
-      return next(error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Image upload failed",
+      });
     }
 
     (async () => {
       try {
-        // Ensure req.files is initialized as an object
         if (!req.files) {
           req.files = {};
         }
 
         const uploadedFile =
-          req.files?.file?.[0] ||
           req.files?.image?.[0] ||
+          req.files?.file?.[0] ||
           req.files?.courseImage?.[0] ||
           req.files?.thumbnail?.[0];
 
@@ -172,14 +181,19 @@ function uploadCourseImage(req, res, next) {
             "londonessexelec/courses",
             "image"
           );
+
           req.uploadedImageUrl = uploadResult.fileUrl;
+          req.body.thumbnailUrl = uploadResult.fileUrl;
         }
 
         await uploadInlineCourseImage(req);
 
         return next();
       } catch (uploadError) {
-        return next(uploadError);
+        return res.status(400).json({
+          success: false,
+          message: uploadError.message || "Image upload failed",
+        });
       }
     })();
   });
