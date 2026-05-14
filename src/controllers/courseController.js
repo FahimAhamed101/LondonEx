@@ -988,11 +988,16 @@ function mapCourseDetail(course) {
   };
 }
 
-function mapCatalogCourseCard(course) {
+function mapCatalogCourseCard(course, reservedSeats = 0) {
   const summary = mapCourseSummary(course);
+  const capacity = mapCourseCapacity(course, reservedSeats);
 
   return {
     ...summary,
+    totalSeats: capacity.totalSeats,
+    bookedSeats: capacity.bookedSeats,
+    remainingSeats: capacity.remainingSeats,
+    capacity,
     badge: {
       label: course.status === "upcoming" ? "Upcoming" : course.status === "archived" ? "Archived" : "Available",
       tone: course.status,
@@ -1579,6 +1584,40 @@ async function buildBookedSeatsMap(courseIds) {
   return new Map(bookedSeats.map((item) => [String(item._id), item.bookedSeats]));
 }
 
+async function buildReservedSeatsMap(courseIds) {
+  const normalizedCourseIds = courseIds.filter(Boolean);
+
+  if (normalizedCourseIds.length === 0) {
+    return new Map();
+  }
+
+  const reservedSeats = await Booking.aggregate([
+    {
+      $match: {
+        course: {
+          $in: normalizedCourseIds,
+        },
+        status: {
+          $ne: "cancelled",
+        },
+        "payment.status": {
+          $in: ["pending", "paid"],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$course",
+        bookedSeats: {
+          $sum: 1,
+        },
+      },
+    },
+  ]);
+
+  return new Map(reservedSeats.map((item) => [String(item._id), item.bookedSeats]));
+}
+
 async function hydrateSourceCourseData(courseData, options = {}) {
   const { excludeId = null } = options;
   const hasSourceField =
@@ -1777,6 +1816,7 @@ async function getCourseCatalogScreen(req, res, next) {
         .limit(limit),
       Course.countDocuments(filter),
     ]);
+    const reservedSeatsMap = await buildReservedSeatsMap(courses.map((course) => course._id));
 
     return res.status(200).json({
       success: true,
@@ -1789,7 +1829,9 @@ async function getCourseCatalogScreen(req, res, next) {
             search,
             status,
           },
-          cards: courses.map(mapCatalogCourseCard),
+          cards: courses.map((course) =>
+            mapCatalogCourseCard(course, reservedSeatsMap.get(String(course._id)) || 0)
+          ),
           pagination: {
             page,
             limit,
