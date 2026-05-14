@@ -717,6 +717,64 @@ export type AdminBookingDetail = AdminBooking & {
       } | null;
     }>;
   };
+  documents: {
+    title: string;
+    uploadApiUrl: string;
+    items: Array<{
+      id: string;
+      type?: string;
+      label?: string;
+      name: string;
+      fileName?: string;
+      description: string;
+      category: string;
+      isDerived?: boolean;
+      available: boolean;
+      previewUrl: string | null;
+      downloadUrl: string | null;
+      fileUrl?: string | null;
+      mimeType?: string;
+      uploadedAt?: string | null;
+    }>;
+    uploadedItems: Array<{
+      id: string;
+      type?: string;
+      label?: string;
+      name: string;
+      fileName?: string;
+      description: string;
+      category: string;
+      isDerived?: boolean;
+      available: boolean;
+      previewUrl: string | null;
+      downloadUrl: string | null;
+      fileUrl?: string | null;
+      mimeType?: string;
+      uploadedAt?: string | null;
+    }>;
+    requirements: Array<{
+      id: string;
+      title: string;
+      description: string;
+      acceptedFileTypes?: string[];
+      required?: boolean;
+      uploaded: boolean;
+      document: {
+        id: string;
+        type: string;
+        label: string;
+        fileName: string;
+        fileUrl: string;
+        mimeType: string;
+        uploadedAt: string | null;
+      } | null;
+    }>;
+    completion: {
+      uploadedCount: number;
+      totalRequired: number;
+      percentage: number;
+    };
+  };
   uploadedDocuments: {
     title: string;
     isDerived: boolean;

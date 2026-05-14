@@ -2231,8 +2231,8 @@ function buildBookingChecklistSummary(booking, course) {
   };
 }
 
-function buildBookingDocuments(booking) {
-  const uploadedItems = getBookingDocumentsArray(booking).map((document, index) => {
+function buildUploadedDocumentItems(booking) {
+  return getBookingDocumentsArray(booking).map((document, index) => {
     const uploadedDocument = mapUploadedBookingDocument(document, `document-${index + 1}`);
     const documentId = uploadedDocument.id || `document-${index + 1}`;
     const fileUrl = uploadedDocument.fileUrl || "";
@@ -2257,6 +2257,31 @@ function buildBookingDocuments(booking) {
       uploadedAt: uploadedDocument.uploadedAt,
     };
   });
+}
+
+function buildAdminBookingDocumentsPayload(booking) {
+  const uploadedItems = buildUploadedDocumentItems(booking);
+  const requirements = buildDocumentRequirements(booking);
+  const uploadedRequirementCount = requirements.filter((requirement) => requirement.uploaded).length;
+
+  return {
+    title: "Uploaded Documents",
+    uploadApiUrl: `/api/bookings/${booking._id}/flow/documents/upload`,
+    items: uploadedItems,
+    uploadedItems,
+    requirements,
+    completion: {
+      uploadedCount: uploadedRequirementCount,
+      totalRequired: requirements.length,
+      percentage: requirements.length
+        ? Math.round((uploadedRequirementCount / requirements.length) * 100)
+        : 0,
+    },
+  };
+}
+
+function buildBookingDocuments(booking) {
+  const uploadedItems = buildUploadedDocumentItems(booking);
 
   return {
     title: "Uploaded Documents",
@@ -4711,6 +4736,7 @@ function mapAdminBookingDetail(booking) {
     ],
     profile: buildAdminBookingProfile(booking),
     verification: buildBookingVerification(booking),
+    documents: buildAdminBookingDocumentsPayload(booking),
     uploadedDocuments: buildBookingDocuments(booking),
     reviewDecision: buildBookingReviewDecision(booking),
     checklistSummary: buildBookingChecklistSummary(booking, course),
