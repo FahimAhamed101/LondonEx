@@ -765,6 +765,8 @@ export type AdminBookingDetail = AdminBooking & {
         label: string;
         fileName: string;
         fileUrl: string;
+        previewUrl?: string | null;
+        downloadUrl?: string | null;
         mimeType: string;
         uploadedAt: string | null;
       } | null;

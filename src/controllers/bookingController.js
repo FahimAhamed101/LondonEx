@@ -1211,6 +1211,19 @@ function buildBookingChecklistFlowResponse(booking) {
     (item) => item.variant === variantMetadata.checklistVariant
   );
 
+  const documentPayload = buildAdminBookingDocumentsPayload(booking);
+
+  responseData.flow = {
+    ...(responseData.flow || {}),
+    documents: {
+      ...(responseData.flow?.documents || {}),
+      requirements: documentPayload.requirements,
+      uploadedItems: documentPayload.uploadedItems,
+      completion: documentPayload.completion,
+      uploadApiUrl: documentPayload.uploadApiUrl,
+    },
+  };
+
   return responseData;
 }
 
@@ -2937,12 +2950,16 @@ function mapUploadedBookingDocument(document, fallbackId) {
     return null;
   }
 
+  const fileUrl = normalizeString(document.fileUrl);
+
   return {
     id: normalizeString(document.type) || fallbackId || "",
     type: normalizeString(document.type),
     label: normalizeString(document.label),
     fileName: normalizeString(document.fileName),
-    fileUrl: normalizeString(document.fileUrl),
+    fileUrl,
+    previewUrl: fileUrl || null,
+    downloadUrl: fileUrl || null,
     mimeType: normalizeString(document.mimeType),
     uploadedAt: document.uploadedAt || null,
   };
