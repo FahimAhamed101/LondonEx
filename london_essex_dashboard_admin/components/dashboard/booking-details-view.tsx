@@ -1006,13 +1006,12 @@ const displayChecklistSections = useMemo(() => {
               ) : null}
 
               <div className="mt-4 space-y-3">
-                {booking.uploadedDocuments.items.map((document, index) => {
-                  const overrideNames = [
-                    "NET Candidate Registration Form",
-                    "NVQ Certificate",
-                    "Photographic ID",
-                  ];
-                  const displayName = overrideNames[index] || document.name;
+                {booking.uploadedDocuments.items.map((document) => {
+                  const isRegistrationFormDocument =
+                    document.category === "booking_form" ||
+                    document.category === "registration_form" ||
+                    document.name === "NET Candidate Registration Form";
+                  const displayName = document.name;
 
                   return (
                     <div
@@ -1037,7 +1036,7 @@ const displayChecklistSections = useMemo(() => {
                       </div>
 
                       <div className="flex items-center gap-3 text-[#5c6cb0]">
-                        {index === 0 ? (
+                        {isRegistrationFormDocument ? (
                           <button
                             type="button"
                             onClick={() => setShowNetRegPreview(true)}

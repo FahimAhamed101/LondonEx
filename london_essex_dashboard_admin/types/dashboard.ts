@@ -722,12 +722,19 @@ export type AdminBookingDetail = AdminBooking & {
     isDerived: boolean;
     items: Array<{
       id: string;
+      type?: string;
+      label?: string;
       name: string;
+      fileName?: string;
       description: string;
       category: string;
+      isDerived?: boolean;
       available: boolean;
       previewUrl: string | null;
       downloadUrl: string | null;
+      fileUrl?: string | null;
+      mimeType?: string;
+      uploadedAt?: string | null;
     }>;
     downloadAll: {
       label: string;

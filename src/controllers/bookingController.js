@@ -2231,48 +2231,44 @@ function buildBookingChecklistSummary(booking, course) {
   };
 }
 
-function buildBookingDocuments(booking, course) {
-  const bookingNumber = booking.bookingNumber || String(booking._id || "");
-  const courseSlug = course?.slug || booking.courseSnapshot?.slug || "course";
-  const courseTitle = course?.title || booking.courseSnapshot?.title || "Selected Course";
+function buildBookingDocuments(booking) {
+  const uploadedItems = getBookingDocumentsArray(booking).map((document, index) => {
+    const uploadedDocument = mapUploadedBookingDocument(document, `document-${index + 1}`);
+    const documentId = uploadedDocument.id || `document-${index + 1}`;
+    const fileUrl = uploadedDocument.fileUrl || "";
+    const label = uploadedDocument.label || uploadedDocument.fileName || "Uploaded document";
+
+    return {
+      id: `${booking._id}-document-${documentId}`,
+      type: uploadedDocument.type || documentId,
+      label,
+      name: label,
+      fileName: uploadedDocument.fileName,
+      description: uploadedDocument.fileName
+        ? `Uploaded file: ${uploadedDocument.fileName}`
+        : "Uploaded through the booking document flow.",
+      category: uploadedDocument.type || documentId,
+      isDerived: false,
+      available: Boolean(fileUrl),
+      previewUrl: fileUrl || null,
+      downloadUrl: fileUrl || null,
+      fileUrl: fileUrl || null,
+      mimeType: uploadedDocument.mimeType,
+      uploadedAt: uploadedDocument.uploadedAt,
+    };
+  });
 
   return {
     title: "Uploaded Documents",
-    isDerived: true,
-    items: [
-      {
-        id: `${booking._id}-document-booking-form`,
-        name: `${bookingNumber}_booking_form.pdf`,
-        description: "Derived from the booking form and candidate submission metadata.",
-        category: "booking_form",
-        available: false,
-        previewUrl: null,
-        downloadUrl: null,
-      },
-      {
-        id: `${booking._id}-document-photo-id`,
-        name: `${bookingNumber}_photo_id_reference.pdf`,
-        description: "Placeholder for identity uploads until file storage is implemented.",
-        category: "identity",
-        available: false,
-        previewUrl: null,
-        downloadUrl: null,
-      },
-      {
-        id: `${booking._id}-document-course-summary`,
-        name: `${courseSlug}_course_summary.pdf`,
-        description: `Derived summary for ${courseTitle}.`,
-        category: "course_summary",
-        available: false,
-        previewUrl: null,
-        downloadUrl: null,
-      },
-    ],
+    isDerived: false,
+    items: uploadedItems,
     downloadAll: {
       label: "Download all",
       available: false,
       url: null,
-      reason: "Candidate document storage has not been implemented yet",
+      reason: uploadedItems.length
+        ? "Download all is not implemented yet. Open each uploaded document individually."
+        : "No documents have been uploaded for this booking yet.",
     },
   };
 }
@@ -4715,7 +4711,7 @@ function mapAdminBookingDetail(booking) {
     ],
     profile: buildAdminBookingProfile(booking),
     verification: buildBookingVerification(booking),
-    uploadedDocuments: buildBookingDocuments(booking, course),
+    uploadedDocuments: buildBookingDocuments(booking),
     reviewDecision: buildBookingReviewDecision(booking),
     checklistSummary: buildBookingChecklistSummary(booking, course),
     checklistResponses: buildChecklistResponsesForClient(booking),
