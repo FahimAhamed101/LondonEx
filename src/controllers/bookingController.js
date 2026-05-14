@@ -629,9 +629,17 @@ function buildAm2eVariantDocumentRequirements(variant) {
         acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
       },
       {
-        id: "skills-scan-post-september-2023",
-        title: "Skills Scan (Post-September 2023)",
-        description: "Upload the post-September 2023 skills scan or equivalent evidence required for AM2E V1",
+        id: "skills-scan-pre-september-2023",
+        title: "Skills Scan (Pre-Sept 2023)",
+        description:
+          "This form dated September 2023 onwards will be replaced. You will need to request this from the JIB if you require it.",
+        acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+      },
+      {
+        id: "level-2-or-level-3-technical-certificate",
+        title: "Level 2 or Level 3 Technical Certificate",
+        description:
+          "For overseas candidates an Electrotechnical Statement from Ecctis (formerly UK NARIC) is required to show UK equivalency if you do not hold a UK Level 2 or 3 technical certificate.",
         acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
       },
     ];
@@ -2935,6 +2943,39 @@ function findBookingDocumentByType(booking, ...documentTypes) {
   );
 }
 
+function buildDocumentUploadAction(booking, requirement, uploadedDoc) {
+  return {
+    label: uploadedDoc ? "Replace" : "Upload",
+    method: "POST",
+    apiUrl: `/api/bookings/${booking._id}/flow/documents/upload`,
+    contentType: "multipart/form-data",
+    fields: [
+      {
+        id: "file",
+        aliases: ["document", "upload", "certificate", "supportingDocument"],
+        label: "Document File",
+        type: "file",
+        required: true,
+        acceptedFileTypes: requirement.acceptedFileTypes || ["pdf", "jpg", "jpeg", "png", "webp"],
+      },
+      {
+        id: "documentType",
+        label: "Document Type",
+        type: "text",
+        required: true,
+        value: requirement.id,
+      },
+      {
+        id: "documentLabel",
+        label: "Document Label",
+        type: "text",
+        required: false,
+        value: requirement.title,
+      },
+    ],
+  };
+}
+
 function buildDocumentRequirements(booking) {
   const variant = getChecklistVariantForBooking(booking);
 
@@ -2947,38 +2988,94 @@ function buildDocumentRequirements(booking) {
         title: req.title,
         description: req.description,
         acceptedFileTypes: req.acceptedFileTypes || ["pdf", "jpg", "jpeg", "png", "webp"],
+        required: true,
         uploaded: Boolean(uploadedDoc),
         document: mapUploadedBookingDocument(uploadedDoc, req.id),
-        action: {
-          label: uploadedDoc ? "Replace" : "Upload",
-          method: "POST",
-          apiUrl: `/api/bookings/${booking._id}/flow/documents/upload`,
-        },
+        action: buildDocumentUploadAction(booking, req, uploadedDoc),
       };
     });
   }
 
+  const requirement = {
+    id: "full_certificate",
+    title: "Learner History Report or Walled Garden Report (City & Guilds)",
+    description: "Requirements from your provider",
+    acceptedFileTypes: ["pdf", "jpg", "jpeg", "png", "webp"],
+  };
   const uploadedCertificate = findBookingDocumentByType(
     booking,
-    "full_certificate",
+    requirement.id,
     "full-certificate",
     "full certificate"
   );
 
   return [
     {
-      id: "full_certificate",
-      title: "Learner History Report or Walled Garden Report (City & Guilds)",
-      description: "Requirements from your provider",
+      ...requirement,
+      required: true,
       uploaded: Boolean(uploadedCertificate),
-      document: mapUploadedBookingDocument(uploadedCertificate, "full_certificate"),
-      action: {
-        label: uploadedCertificate ? "Replace" : "Upload",
-        method: "POST",
-        apiUrl: `/api/bookings/${booking._id}/flow/documents/upload`,
-      },
+      document: mapUploadedBookingDocument(uploadedCertificate, requirement.id),
+      action: buildDocumentUploadAction(booking, requirement, uploadedCertificate),
     },
   ];
+}
+
+function getRequestedDocumentType(body = {}) {
+  return normalizeString(
+    body.documentType ||
+      body.requirementId ||
+      body.documentId ||
+      body.type ||
+      body.document_type
+  );
+}
+
+function resolveDocumentRequirementForUpload(booking, requestedDocumentType) {
+  const requirements = buildDocumentRequirements(booking);
+  const requestedTypeKey = normalizeDocumentTypeKey(requestedDocumentType);
+
+  if (!requestedTypeKey && requirements.length === 1) {
+    return {
+      requirement: requirements[0],
+      requirements,
+    };
+  }
+
+  if (!requestedTypeKey) {
+    return {
+      error: `documentType is required. Use one of: ${requirements
+        .map((requirement) => requirement.id)
+        .join(", ")}`,
+      status: 400,
+      requirements,
+    };
+  }
+
+  const requirement = requirements.find((item) => {
+    const acceptedKeys = [
+      item.id,
+      item.title,
+      item.document?.id,
+      item.document?.type,
+    ].map((value) => normalizeDocumentTypeKey(value));
+
+    return acceptedKeys.includes(requestedTypeKey);
+  });
+
+  if (!requirement) {
+    return {
+      error: `Invalid documentType. Use one of: ${requirements
+        .map((item) => item.id)
+        .join(", ")}`,
+      status: 400,
+      requirements,
+    };
+  }
+
+  return {
+    requirement,
+    requirements,
+  };
 }
 
 function getChecklistVariantMetadata(variant = "am2") {
@@ -4007,7 +4104,8 @@ function calculateChecklistCompletion(sections) {
 }
 
 function isBookingDocumentsComplete(booking) {
-  return true;
+  const requirements = buildDocumentRequirements(booking);
+  return requirements.every((requirement) => requirement.uploaded);
 }
 
 function isBookingChecklistComplete(booking) {
@@ -4015,18 +4113,26 @@ function isBookingChecklistComplete(booking) {
 }
 
 function isBookingReadyForSubmit(booking) {
-  return true;
+  return isBookingDocumentsComplete(booking) && isBookingChecklistComplete(booking);
 }
 
 function buildBookingFlowDocumentsScreen(booking) {
-  const requirements = [];
-  const uploadedCount = 0;
+  const variantMetadata = buildBookingChecklistVariantMetadata(booking);
+  const checklistMetadata = getChecklistVariantMetadata(variantMetadata.checklistVariant);
+  const requirements = buildDocumentRequirements(booking);
+  const uploadedCount = requirements.filter((requirement) => requirement.uploaded).length;
+  const documentsComplete = requirements.length === 0 || uploadedCount === requirements.length;
 
   return {
     steps: buildBookingFlowSteps("documents"),
+    checklistVariant: variantMetadata.checklistVariant,
+    assessmentVariant: variantMetadata.assessmentVariant,
+    templateId: variantMetadata.templateId,
+    resolvedFrom: variantMetadata.resolvedFrom,
+    pdfExport: variantMetadata.pdfExport,
     title: "Upload Full Certificate",
-    subtitle: "For those who don't already hold AM2",
-    importantInformation: "Document upload is optional for this booking flow.",
+    subtitle: checklistMetadata.title,
+    importantInformation: "You must upload all required documents before proceeding.",
     course: {
       id: booking.course?._id || booking.course,
       title: booking.courseSnapshot?.title || "",
@@ -4041,7 +4147,10 @@ function buildBookingFlowDocumentsScreen(booking) {
     actions: {
       continue: {
         label: "Continue",
-        enabled: true,
+        enabled: documentsComplete,
+        disabledReason: documentsComplete
+          ? ""
+          : "Upload all required documents before continuing.",
         apiUrl: `/api/bookings/${booking._id}/flow/checklist`,
       },
     },
@@ -4226,7 +4335,7 @@ function buildBookingFlowSubmitScreen(booking) {
     {
       id: "documents",
       label: "Supporting Documents",
-      status: "optional",
+      status: isBookingDocumentsComplete(booking) ? "uploaded" : "pending",
     },
     {
       id: "registration",
@@ -5345,25 +5454,47 @@ async function uploadMyBookingDocument(req, res, next) {
       });
     }
 
-    const documentType = normalizeString(req.body.documentType || "full_certificate") || "full_certificate";
+    const booking = bookingResult.value;
+    const requirementResult = resolveDocumentRequirementForUpload(
+      booking,
+      getRequestedDocumentType(req.body)
+    );
+
+    if (requirementResult.error) {
+      return res.status(requirementResult.status).json({
+        success: false,
+        message: requirementResult.error,
+        data: {
+          validDocumentTypes: requirementResult.requirements.map((requirement) => ({
+            id: requirement.id,
+            title: requirement.title,
+          })),
+        },
+      });
+    }
+
+    const documentType = requirementResult.requirement.id;
     const documentLabel =
       normalizeString(req.body.documentLabel) ||
-      "Learner History Report or Walled Garden Report (City & Guilds)";
-    const booking = bookingResult.value;
+      requirementResult.requirement.title;
+    const documentTypeKey = normalizeDocumentTypeKey(documentType);
     const existingDocuments = Array.isArray(booking.documents)
-      ? booking.documents.filter((document) => document.type !== documentType)
+      ? booking.documents.filter(
+          (document) => normalizeDocumentTypeKey(document.type) !== documentTypeKey
+        )
       : [];
+    const uploadedDocument = {
+      type: documentType,
+      label: documentLabel,
+      fileName: req.uploadedDocument.fileName,
+      fileUrl: req.uploadedDocument.fileUrl,
+      mimeType: req.uploadedDocument.mimeType,
+      uploadedAt: new Date(),
+    };
 
     booking.documents = [
       ...existingDocuments,
-      {
-        type: documentType,
-        label: documentLabel,
-        fileName: req.uploadedDocument.fileName,
-        fileUrl: req.uploadedDocument.fileUrl,
-        mimeType: req.uploadedDocument.mimeType,
-        uploadedAt: new Date(),
-      },
+      uploadedDocument,
     ];
 
     await booking.save();
@@ -5372,6 +5503,7 @@ async function uploadMyBookingDocument(req, res, next) {
       success: true,
       message: "Booking document uploaded successfully",
       data: {
+        document: mapUploadedBookingDocument(uploadedDocument, documentType),
         screen: buildBookingFlowDocumentsScreen(booking),
       },
     });

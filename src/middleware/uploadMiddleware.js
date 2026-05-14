@@ -19,6 +19,13 @@ const allowedBookingMimeTypes = new Set([
   "image/webp",
   "image/jpg",
 ]);
+const bookingDocumentUploadFields = [
+  "file",
+  "document",
+  "upload",
+  "certificate",
+  "supportingDocument",
+];
 
 const imageUpload = multer({
   storage: multer.memoryStorage(),
@@ -194,16 +201,25 @@ function uploadCourseImage(req, res, next) {
 }
 
 function uploadBookingDocument(req, res, next) {
-  bookingDocumentUpload.single("file")(req, res, (error) => {
+  bookingDocumentUpload.fields(
+    bookingDocumentUploadFields.map((name) => ({ name, maxCount: 1 }))
+  )(req, res, (error) => {
     if (error) {
+      if (error.name === "MulterError" && error.code === "LIMIT_FILE_SIZE") {
+        error.message = "Document size must be 10MB or smaller";
+      }
       return next(error);
     }
 
     (async () => {
       try {
-        if (req.file) {
+        const uploadedFile = bookingDocumentUploadFields
+          .map((fieldName) => req.files?.[fieldName]?.[0])
+          .find(Boolean);
+
+        if (uploadedFile) {
           req.uploadedDocument = await uploadFileToCloudinary(
-            req.file,
+            uploadedFile,
             "londonessexelec/bookings/documents",
             "auto"
           );

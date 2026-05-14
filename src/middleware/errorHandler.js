@@ -6,7 +6,9 @@ function errorHandler(error, req, res, next) {
   if (error && error.name === "MulterError") {
     const message =
       error.code === "LIMIT_FILE_SIZE"
-        ? "Image size must be 5MB or smaller"
+        ? error.message && error.message !== "File too large"
+          ? error.message
+          : "Image size must be 5MB or smaller"
         : error.message || "Image upload failed";
 
     return res.status(400).json({
@@ -27,6 +29,13 @@ function errorHandler(error, req, res, next) {
     (error.message === "Invalid image data URL" ||
       error.message === "Image size must be 5MB or smaller")
   ) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+
+  if (error && error.message === "Document size must be 10MB or smaller") {
     return res.status(400).json({
       success: false,
       message: error.message,
