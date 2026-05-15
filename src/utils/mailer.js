@@ -63,6 +63,15 @@ function buildFromHeader(fromName, fromEmail) {
   return fromName ? `"${fromName}" <${fromEmail}>` : fromEmail;
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function sendPasswordResetEmail({ to, name, code, expiresInMinutes, resetUrl }) {
   const config = ensureMailerConfig();
   const mailTransport = getTransporter();
@@ -95,6 +104,59 @@ async function sendPasswordResetEmail({ to, name, code, expiresInMinutes, resetU
         <a href="${resetUrl}">${resetUrl}</a>
       </p>
       <p>If you did not request this, you can ignore this email.</p>
+    </div>
+  `;
+
+  return mailTransport.sendMail({
+    from: buildFromHeader(config.fromName, config.fromEmail),
+    to,
+    subject,
+    text,
+    html,
+  });
+}
+
+async function sendCandidateReminderEmail({
+  to,
+  candidateName,
+  courseTitle,
+  progressLabel,
+  dashboardUrl,
+}) {
+  const config = ensureMailerConfig();
+  const mailTransport = getTransporter();
+  const greetingName = candidateName || "Candidate";
+  const course = courseTitle || "your course";
+  const progress = progressLabel || "0.0%";
+  const subject = `Reminder to complete your ${course} registration`;
+
+  const text = [
+    `Dear ${greetingName},`,
+    "",
+    `This is a friendly reminder to complete your registration for ${course}. Your current progress is ${progress}. Please log in to continue.`,
+    dashboardUrl ? "" : "",
+    dashboardUrl ? `Continue here: ${dashboardUrl}` : "",
+    "",
+    "Best regards,",
+    "Admin Team",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+      <p>Dear ${escapeHtml(greetingName)},</p>
+      <p>
+        This is a friendly reminder to complete your registration for
+        <strong>${escapeHtml(course)}</strong>. Your current progress is
+        <strong>${escapeHtml(progress)}</strong>. Please log in to continue.
+      </p>
+      ${
+        dashboardUrl
+          ? `<p><a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;padding:12px 18px;background:#0ea5e9;color:#ffffff;text-decoration:none;border-radius:8px;">Continue registration</a></p>`
+          : ""
+      }
+      <p>Best regards,<br />Admin Team</p>
     </div>
   `;
 
@@ -224,6 +286,7 @@ async function sendContactFormNotificationEmail({
 module.exports = {
   isMailerReady,
   sendPasswordResetEmail,
+  sendCandidateReminderEmail,
   sendTrainingProviderSignatureRequestEmail,
   sendContactFormNotificationEmail,
 };

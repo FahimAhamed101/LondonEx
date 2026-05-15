@@ -5,6 +5,8 @@ const {
   listUsers,
   listSubmissions,
   listCandidates,
+  sendCandidateReminder,
+  sendStuckCandidateReminders,
   getCandidateById,
 } = require("../controllers/adminController");
 const {
@@ -49,6 +51,8 @@ router.get("/dashboard", getDashboard);
 router.get("/users", listUsers);
 router.get("/submissions", listSubmissions);
 router.get("/candidates", listCandidates);
+router.post("/candidates/stuck/reminders", sendStuckCandidateReminders);
+router.post("/candidates/:id/reminder", sendCandidateReminder);
 router.get("/candidates/:id", getCandidateById);
 router.get("/courses", listAdminCourses);
 router.get("/courses/options", listCourseSourceOptions);

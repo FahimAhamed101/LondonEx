@@ -88,14 +88,35 @@ function buildUrlFromBase(baseUrl, token) {
   return `${normalizedBaseUrl.replace(/\/+$/, "")}/${encodeURIComponent(token)}`;
 }
 
-function getTrainingProviderSignatureLink(token) {
-  const configuredBase =
-    normalizeString(process.env.TRAINING_PROVIDER_SIGNATURE_URL_BASE) ||
-    normalizeString(process.env.FRONTEND_URL) ||
-    normalizeString(process.env.APP_URL);
+function buildTrainingProviderFrontendUrl(frontendBaseUrl, token) {
+  const normalizedBaseUrl = normalizeString(frontendBaseUrl);
 
-  if (configuredBase) {
-    return buildUrlFromBase(configuredBase, token);
+  if (!normalizedBaseUrl) {
+    return "";
+  }
+
+  if (normalizedBaseUrl.includes("{token}")) {
+    return normalizedBaseUrl.replace("{token}", encodeURIComponent(token));
+  }
+
+  return `${normalizedBaseUrl.replace(/\/+$/, "")}/provider-signature/${encodeURIComponent(token)}`;
+}
+
+function getTrainingProviderSignatureLink(token) {
+  const configuredSignatureBase = normalizeString(process.env.TRAINING_PROVIDER_SIGNATURE_URL_BASE);
+
+  if (configuredSignatureBase) {
+    return buildUrlFromBase(configuredSignatureBase, token);
+  }
+
+  const frontendBase =
+    normalizeString(process.env.FRONTEND_URL) ||
+    normalizeString(process.env.CLIENT_URL) ||
+    normalizeString(process.env.APP_URL) ||
+    "http://localhost:3000";
+
+  if (frontendBase) {
+    return buildTrainingProviderFrontendUrl(frontendBase, token);
   }
 
   return getTrainingProviderSignatureApiUrl(token);
@@ -4524,6 +4545,9 @@ function buildTrainingProviderSignatureScreen(booking) {
       submit: {
         label: "Submit Signature",
         method: "POST",
+        apiUrl: request.token ? `/api/bookings/provider-signature/${request.token}` : "",
+        contentType: "multipart/form-data",
+        uploadFields: ["file", "image", "signature", "candidateSignature"],
       },
     },
   };
@@ -5814,7 +5838,19 @@ async function submitTrainingProviderSignatureByToken(req, res, next) {
       });
     }
 
-    const signatureResult = buildSignaturePayload(req.body || {});
+    const request = bookingResult.value.trainingProviderSignatureRequest || {};
+    const signatureResult = buildSignaturePayload({
+      ...(req.body || {}),
+      signatureData: req.uploadedSignatureFile?.fileUrl || req.body?.signatureData,
+      fileUrl: req.uploadedSignatureFile?.fileUrl || req.body?.fileUrl,
+      fileName: req.uploadedSignatureFile?.fileName || req.body?.fileName,
+      signatureType:
+        req.body?.signatureType ||
+        req.body?.type ||
+        (req.uploadedSignatureFile ? "upload" : undefined),
+      signerName: req.body?.signerName || req.body?.name || request.name || "",
+      signerEmail: req.body?.signerEmail || req.body?.email || request.email || "",
+    });
     if (signatureResult.error) {
       return res.status(400).json({
         success: false,
@@ -5822,7 +5858,6 @@ async function submitTrainingProviderSignatureByToken(req, res, next) {
       });
     }
 
-    const request = bookingResult.value.trainingProviderSignatureRequest || {};
     bookingResult.value.trainingProviderSignature = {
       ...(bookingResult.value.trainingProviderSignature?.toObject
         ? bookingResult.value.trainingProviderSignature.toObject()

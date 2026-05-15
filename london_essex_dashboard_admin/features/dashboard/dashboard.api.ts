@@ -10,8 +10,10 @@ import type {
   CourseSourceOptionsResponse,
   AdminSubmissionsResponse,
   AdminCandidatesResponse,
+  CandidateReminderResult,
   UpdateAdminBookingRequest,
   UpdateAdminCourseRequest,
+  StuckCandidateReminderResponse,
   SaveRegistrationEligibilityRequest,
   SaveRegistrationAssessmentRequest,
   SaveRegistrationEmployerRequest,
@@ -178,6 +180,24 @@ export const dashboardApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Bookings"],
     }),
+    sendCandidateReminder: builder.mutation<
+      ApiResponse<CandidateReminderResult>,
+      string
+    >({
+      query: (candidateId) => ({
+        url: `/admin/candidates/${candidateId}/reminder`,
+        method: "POST",
+      }),
+    }),
+    sendStuckCandidateReminders: builder.mutation<
+      ApiResponse<StuckCandidateReminderResponse>,
+      void
+    >({
+      query: () => ({
+        url: `/admin/candidates/stuck/reminders`,
+        method: "POST",
+      }),
+    }),
     saveRegistrationEligibility: builder.mutation<
       ApiResponse<AdminBookingDetailResponse>,
       { bookingId: string; body: SaveRegistrationEligibilityRequest }
@@ -302,6 +322,8 @@ export const {
   useCreateAdminCourseMutation,
   useUpdateAdminBookingMutation,
   useUpdateAdminCourseMutation,
+  useSendCandidateReminderMutation,
+  useSendStuckCandidateRemindersMutation,
   useSaveRegistrationEligibilityMutation,
   useSaveRegistrationAssessmentMutation,
   useSaveRegistrationEmployerMutation,

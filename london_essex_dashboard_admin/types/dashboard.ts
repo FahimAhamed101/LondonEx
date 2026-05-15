@@ -500,7 +500,8 @@ export type AdminCandidate = {
       type: string;
       value: string;
       url: string;
-    };
+      apiUrl: string;
+    } | null;
     view: {
       label: string;
       type: string;
@@ -594,6 +595,26 @@ export type AdminBooking = {
     email: string;
     role: string;
   };
+};
+
+export type CandidateReminderResult = {
+  sent: boolean;
+  bookingId: string;
+  reason?: string;
+  candidate: AdminCandidate["candidate"];
+  course?: AdminCandidate["enrolledCourse"];
+  progress?: AdminCandidate["progress"];
+};
+
+export type StuckCandidateReminderResponse = {
+  threshold: number;
+  totalMatched: number;
+  sentCount: number;
+  skippedCount: number;
+  failedCount: number;
+  sent: CandidateReminderResult[];
+  skipped: CandidateReminderResult[];
+  failed: CandidateReminderResult[];
 };
 
 export type BookingChecklistVariantMetadata = {

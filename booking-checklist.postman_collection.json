@@ -1,0 +1,237 @@
+{
+  "info": {
+    "name": "London Essex Flow APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "frontendUrl", "value": "http://localhost:3000" },
+    { "key": "userToken", "value": "YOUR_USER_JWT" },
+    { "key": "adminToken", "value": "YOUR_ADMIN_JWT" },
+    { "key": "bookingId", "value": "YOUR_BOOKING_ID" },
+    { "key": "courseId", "value": "YOUR_COURSE_ID" },
+    { "key": "providerSignatureToken", "value": "TOKEN_FROM_REQUEST_RESPONSE_OR_EMAIL_LINK" },
+    { "key": "documentType", "value": "full_certificate" },
+    { "key": "documentFilePath", "value": "" },
+    { "key": "signatureFilePath", "value": "" },
+    { "key": "trainingProviderEmail", "value": "provider@example.com" },
+    { "key": "trainingProviderName", "value": "Training Provider" },
+    { "key": "candidateId", "value": "YOUR_CANDIDATE_BOOKING_ID" }
+  ],
+  "item": [
+    {
+      "name": "Training Provider Signature Flow",
+      "item": [
+        {
+          "name": "Get Booking Signatures Screen",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/flow/signatures",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "{{bookingId}}", "flow", "signatures"]
+            },
+            "description": "Authenticated learner endpoint. Returns candidate and training provider signature state plus the request action API URL."
+          }
+        },
+        {
+          "name": "Request Training Provider Signature Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trainingProviderEmail\": \"{{trainingProviderEmail}}\",\n  \"trainingProviderName\": \"{{trainingProviderName}}\",\n  \"subject\": \"Please add your training provider signature\",\n  \"message\": \"Hello,\\n\\nI have completed my registration form and require your signature as my training provider to finalize the process.\\n\\nPlease review my details and provide your signature.\\n\\nThank you.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/flow/signatures/training-provider/request",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "{{bookingId}}", "flow", "signatures", "training-provider", "request"]
+            },
+            "description": "Sends an email to the trainingProviderEmail. The email link opens {{frontendUrl}}/provider-signature/{token}. Copy data.link or the token from the email into providerSignatureToken for the next requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Request sent', () => pm.response.to.have.status(200));",
+                  "if (json.data && json.data.link) {",
+                  "  const token = json.data.link.split('/').filter(Boolean).pop();",
+                  "  pm.collectionVariables.set('providerSignatureToken', token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Provider Signature Upload Page Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/provider-signature/{{providerSignatureToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
+            },
+            "description": "Public endpoint used by the provider link. Returns booking and provider details for the signature page."
+          }
+        },
+        {
+          "name": "Submit Provider Signature - Drawn JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureType\": \"draw\",\n  \"signatureData\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP8z8AARQAFAgH+AX+1AAAAAElFTkSuQmCC\",\n  \"fileName\": \"training-provider-signature.png\",\n  \"signerName\": \"{{trainingProviderName}}\",\n  \"signerEmail\": \"{{trainingProviderEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/provider-signature/{{providerSignatureToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
+            },
+            "description": "Public endpoint. Saves a drawn signature from signatureData."
+          }
+        },
+        {
+          "name": "Submit Provider Signature - Upload File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "signatureType", "value": "upload", "type": "text" },
+                { "key": "signerName", "value": "{{trainingProviderName}}", "type": "text" },
+                { "key": "signerEmail", "value": "{{trainingProviderEmail}}", "type": "text" },
+                { "key": "file", "src": "{{signatureFilePath}}", "type": "file" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/provider-signature/{{providerSignatureToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
+            },
+            "description": "Public endpoint. Use multipart/form-data and let Postman set Content-Type. File fields accepted by the API: file, image, signature, candidateSignature."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Previously Added APIs",
+      "item": [
+        {
+          "name": "Course Catalog With Remaining Seats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/courses/screen/catalog?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "courses", "screen", "catalog"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Returns catalog cards with totalSeats, bookedSeats, remainingSeats, and capacity."
+          }
+        },
+        {
+          "name": "Get Booking Documents Flow",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/flow/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "{{bookingId}}", "flow", "documents"]
+            }
+          }
+        },
+        {
+          "name": "Upload Booking Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "src": "{{documentFilePath}}", "type": "file" },
+                { "key": "documentType", "value": "{{documentType}}", "type": "text" },
+                { "key": "documentLabel", "value": "", "type": "text", "disabled": true }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/{{bookingId}}/flow/documents/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "{{bookingId}}", "flow", "documents", "upload"]
+            },
+            "description": "Uploads/replaces a required document. Valid documentType values are returned by the documents flow."
+          }
+        },
+        {
+          "name": "Admin Booking Detail With Document URLs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/bookings/{{bookingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "bookings", "{{bookingId}}"]
+            },
+            "description": "Returns uploaded document URLs in data.booking.documents.items, uploadedDocuments.items, and checklistFlow.flow.documents.uploadedItems."
+          }
+        },
+        {
+          "name": "Send Single Candidate Reminder",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/candidates/{{candidateId}}/reminder",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "candidates", "{{candidateId}}", "reminder"]
+            },
+            "description": "Sends a progress reminder email to one candidate booking row."
+          }
+        },
+        {
+          "name": "Send Stuck Candidate Reminders Under 50 Percent",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/candidates/stuck/reminders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "candidates", "stuck", "reminders"]
+            },
+            "description": "Sends reminder emails to all non-cancelled candidates whose progress is less than 50%."
+          }
+        }
+      ]
+    }
+  ]
+}

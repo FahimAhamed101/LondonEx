@@ -12,7 +12,11 @@ import {
   X,
 } from "lucide-react";
 import { DashboardSectionCard } from "@/components/dashboard/dashboard-section-card";
-import { useGetAdminCoursesQuery } from "@/features/dashboard/dashboard.api";
+import {
+  useGetAdminCoursesQuery,
+  useSendCandidateReminderMutation,
+  useSendStuckCandidateRemindersMutation,
+} from "@/features/dashboard/dashboard.api";
 import type { AdminCandidate } from "@/types/dashboard";
 
 const ROWS_PER_PAGE = 10;
@@ -70,7 +74,15 @@ export function CandidatesTableCard({
   const [selectedReminderRowId, setSelectedReminderRowId] = useState<
     string | null
   >(null);
+  const [reminderStatus, setReminderStatus] = useState<string | null>(null);
+  const [reminderError, setReminderError] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(search);
+  const [sendCandidateReminder, { isLoading: isSendingReminder }] =
+    useSendCandidateReminderMutation();
+  const [
+    sendStuckCandidateReminders,
+    { isLoading: isSendingStuckReminders },
+  ] = useSendStuckCandidateRemindersMutation();
   const { data: coursesData } = useGetAdminCoursesQuery({
     page: 1,
     limit: 100,
@@ -111,6 +123,51 @@ export function CandidatesTableCard({
   const visibleRows = filteredRows.slice(0, ROWS_PER_PAGE);
   const selectedReminderRow =
     rows.find((row) => row.id === selectedReminderRowId) ?? null;
+
+  const handleStuckOnlyChange = async (checked: boolean) => {
+    setStuckOnly(checked);
+    setReminderStatus(null);
+    setReminderError(null);
+
+    if (!checked) {
+      return;
+    }
+
+    try {
+      const response = await sendStuckCandidateReminders().unwrap();
+      setReminderStatus(
+        response.data.totalMatched === 0
+          ? "No stuck candidates under 50% progress found."
+          : `Sent ${response.data.sentCount} reminder email${response.data.sentCount === 1 ? "" : "s"} to stuck candidate${response.data.sentCount === 1 ? "" : "s"}.`,
+      );
+
+      if (response.data.failedCount > 0) {
+        setReminderError(
+          `${response.data.failedCount} reminder email${response.data.failedCount === 1 ? "" : "s"} could not be sent.`,
+        );
+      }
+    } catch {
+      setReminderError("Stuck candidate reminder emails could not be sent.");
+    }
+  };
+
+  const handleSendSelectedReminder = async () => {
+    if (!selectedReminderRow?.actions.message) {
+      setReminderError("This candidate does not have an email address.");
+      return;
+    }
+
+    try {
+      const response = await sendCandidateReminder(selectedReminderRow.id).unwrap();
+      setReminderStatus(
+        `Reminder email sent to ${response.data.candidate.name}.`,
+      );
+      setReminderError(null);
+      setSelectedReminderRowId(null);
+    } catch {
+      setReminderError("Reminder email could not be sent right now.");
+    }
+  };
 
   return (
     <>
@@ -231,8 +288,9 @@ export function CandidatesTableCard({
                         <div className="flex items-center justify-center gap-2 text-[#5060b5]">
                           <button
                             type="button"
+                            disabled={!row.actions.message}
                             onClick={() => setSelectedReminderRowId(row.id)}
-                            className="grid h-8 w-8 place-items-center rounded-md border border-[#d7e5f7] bg-white transition hover:bg-[#f6faff]"
+                            className="grid h-8 w-8 place-items-center rounded-md border border-[#d7e5f7] bg-white transition hover:bg-[#f6faff] disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Mail className="h-4 w-4" />
                           </button>
@@ -261,10 +319,17 @@ export function CandidatesTableCard({
                 <input
                   type="checkbox"
                   checked={stuckOnly}
-                  onChange={(event) => setStuckOnly(event.target.checked)}
+                  disabled={isSendingStuckReminders}
+                  onChange={(event) =>
+                    void handleStuckOnlyChange(event.target.checked)
+                  }
                   className="h-4 w-4 rounded border-[#cfdcf2] text-[#1ea6df]"
                 />
-                <span>Stuck candidates</span>
+                <span>
+                  {isSendingStuckReminders
+                    ? "Sending reminders..."
+                    : "Stuck candidates"}
+                </span>
               </label>
 
               <div className="flex flex-wrap items-center gap-4 md:justify-end">
@@ -295,6 +360,12 @@ export function CandidatesTableCard({
               </div>
             </div>
           </div>
+          {reminderStatus ? (
+            <p className="text-sm text-[#10a56b]">{reminderStatus}</p>
+          ) : null}
+          {reminderError ? (
+            <p className="text-sm text-[#d94b2b]">{reminderError}</p>
+          ) : null}
         </div>
       </DashboardSectionCard>
 
@@ -345,13 +416,12 @@ export function CandidatesTableCard({
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  window.open(selectedReminderRow.actions.message.url, "_blank")
-                }
-                className="inline-flex h-[52px] min-w-[260px] items-center justify-center gap-3 rounded-[14px] bg-[var(--color-action-primary)] px-7 text-[15px] font-semibold text-white shadow-[0_12px_26px_rgba(11,168,221,0.28)] transition hover:bg-[var(--color-action-primary-hover)]"
+                disabled={isSendingReminder}
+                onClick={() => void handleSendSelectedReminder()}
+                className="inline-flex h-[52px] min-w-[260px] items-center justify-center gap-3 rounded-[14px] bg-[var(--color-action-primary)] px-7 text-[15px] font-semibold text-white shadow-[0_12px_26px_rgba(11,168,221,0.28)] transition hover:bg-[var(--color-action-primary-hover)] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <Mail className="h-5 w-5" />
-                Send Reminder
+                {isSendingReminder ? "Sending..." : "Send Reminder"}
               </button>
             </div>
           </div>

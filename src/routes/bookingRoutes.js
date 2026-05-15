@@ -46,7 +46,7 @@ const {
 const router = express.Router();
 
 router.get("/provider-signature/:token", getTrainingProviderSignatureByToken);
-router.post("/provider-signature/:token", submitTrainingProviderSignatureByToken);
+router.post("/provider-signature/:token", uploadBookingSignatureImage, submitTrainingProviderSignatureByToken);
 router.get("/checklist-flow", getChecklistFlowByCourseId);
 router.get("/checklist-variant", getChecklistVariantByCourseId);
 router.get("/am2-checklist-flow", getAm2ChecklistFlowByCourseId);

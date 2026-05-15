@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const Course = require("../models/Course");
 const Booking = require("../models/Booking");
+const { sendCandidateReminderEmail } = require("../utils/mailer");
 
 const SUBMISSION_STATUS_OPTIONS = [
   { value: "not_started", label: "Not started" },
@@ -326,22 +327,11 @@ function calculateCandidateProgress(booking, now = new Date()) {
 }
 
 function isStuckCandidate(booking, progress, now = new Date()) {
-  const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
-  const bookingAgeInDays = createdAt ? (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24) : 0;
-
   if (booking.status === "cancelled" || booking.payment?.status === "refunded") {
     return false;
   }
 
-  if (booking.payment?.status === "failed" || booking.status === "pending_payment") {
-    return bookingAgeInDays >= 3;
-  }
-
-  if (booking.status === "confirmed" && !booking.session?.startDateTime) {
-    return bookingAgeInDays >= 7;
-  }
-
-  return progress.percentage < 25 && bookingAgeInDays >= 5;
+  return progress.percentage < 50;
 }
 
 function mapCandidateRow(booking, now = new Date()) {
@@ -377,6 +367,7 @@ function mapCandidateRow(booking, now = new Date()) {
             type: "email",
             value: candidateEmail,
             url: `mailto:${candidateEmail}`,
+            apiUrl: `/api/admin/candidates/${booking._id}/reminder`,
           }
         : null,
       view: {
@@ -386,6 +377,53 @@ function mapCandidateRow(booking, now = new Date()) {
         apiUrl: `/api/admin/candidates/${booking._id}`,
       },
     },
+  };
+}
+
+function getCandidateReminderDashboardUrl() {
+  const baseUrl = normalizeString(
+    process.env.FRONTEND_URL ||
+      process.env.CLIENT_URL ||
+      process.env.APP_URL ||
+      process.env.PUBLIC_APP_URL
+  ).replace(/\/+$/, "");
+
+  return baseUrl ? `${baseUrl}/dashboard` : "";
+}
+
+function buildCandidateReminderPayload(booking, now = new Date()) {
+  const row = mapCandidateRow(booking, now);
+
+  return {
+    to: row.candidate.email,
+    candidateName: row.candidate.name,
+    courseTitle: row.enrolledCourse.title,
+    progressLabel: row.progress.label,
+    dashboardUrl: getCandidateReminderDashboardUrl(),
+    row,
+  };
+}
+
+async function sendCandidateReminderForBooking(booking, now = new Date()) {
+  const payload = buildCandidateReminderPayload(booking, now);
+
+  if (!payload.to) {
+    return {
+      sent: false,
+      bookingId: String(booking._id),
+      reason: "Candidate email is missing",
+      candidate: payload.row.candidate,
+    };
+  }
+
+  await sendCandidateReminderEmail(payload);
+
+  return {
+    sent: true,
+    bookingId: String(booking._id),
+    candidate: payload.row.candidate,
+    course: payload.row.enrolledCourse,
+    progress: payload.row.progress,
   };
 }
 
@@ -1328,6 +1366,129 @@ async function listCandidates(req, res, next) {
   }
 }
 
+async function sendCandidateReminder(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid candidate id",
+      });
+    }
+
+    const booking = await Booking.findById(id).populate("user", "name email");
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Candidate not found",
+      });
+    }
+
+    try {
+      const result = await sendCandidateReminderForBooking(booking);
+
+      if (!result.sent) {
+        return res.status(400).json({
+          success: false,
+          message: result.reason,
+          data: result,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Reminder email sent successfully",
+        data: result,
+      });
+    } catch (emailError) {
+      return res.status(500).json({
+        success: false,
+        message:
+          emailError.message === "SMTP is not configured"
+            ? "SMTP is not configured"
+            : "Reminder email could not be sent right now",
+      });
+    }
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function sendStuckCandidateReminders(req, res, next) {
+  try {
+    const now = new Date();
+    const bookings = await Booking.find({
+      status: { $ne: "cancelled" },
+      "payment.status": { $ne: "refunded" },
+    })
+      .populate("user", "name email")
+      .sort({ createdAt: -1 })
+      .limit(1000);
+
+    const stuckBookings = bookings.filter((booking) => {
+      const progress = calculateCandidateProgress(booking, now);
+      return isStuckCandidate(booking, progress, now);
+    });
+
+    const sent = [];
+    const skipped = [];
+    const failed = [];
+
+    for (const booking of stuckBookings) {
+      try {
+        const result = await sendCandidateReminderForBooking(booking, now);
+        if (result.sent) {
+          sent.push(result);
+        } else {
+          skipped.push(result);
+        }
+      } catch (emailError) {
+        const payload = buildCandidateReminderPayload(booking, now);
+        failed.push({
+          bookingId: String(booking._id),
+          candidate: payload.row.candidate,
+          course: payload.row.enrolledCourse,
+          progress: payload.row.progress,
+          reason:
+            emailError.message === "SMTP is not configured"
+              ? "SMTP is not configured"
+              : "Reminder email could not be sent right now",
+        });
+
+        if (emailError.message === "SMTP is not configured") {
+          break;
+        }
+      }
+    }
+
+    const statusCode = sent.length > 0 || stuckBookings.length === 0 ? 200 : 500;
+
+    return res.status(statusCode).json({
+      success: statusCode === 200,
+      message:
+        stuckBookings.length === 0
+          ? "No stuck candidates under 50% progress found"
+          : failed.length > 0 && sent.length === 0
+            ? "Stuck candidate reminder emails could not be sent"
+            : "Stuck candidate reminder emails processed",
+      data: {
+        threshold: 50,
+        totalMatched: stuckBookings.length,
+        sentCount: sent.length,
+        skippedCount: skipped.length,
+        failedCount: failed.length,
+        sent,
+        skipped,
+        failed,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function getCandidateById(req, res, next) {
   try {
     const { id } = req.params;
@@ -1370,5 +1531,7 @@ module.exports = {
   listUsers,
   listSubmissions,
   listCandidates,
+  sendCandidateReminder,
+  sendStuckCandidateReminders,
   getCandidateById,
 };
