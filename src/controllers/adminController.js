@@ -17,6 +17,26 @@ function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function getReminderMailFailureMessage(error) {
+  if (error?.message === "SMTP is not configured") {
+    return "SMTP is not configured";
+  }
+
+  if (error?.code === "EAUTH") {
+    return "SMTP authentication failed. Check SMTP_USER and SMTP_PASS.";
+  }
+
+  if (
+    error?.code === "ETIMEDOUT" ||
+    error?.code === "ESOCKET" ||
+    /timeout|timed out/i.test(error?.message || "")
+  ) {
+    return "SMTP server timed out. Check SMTP_HOST, SMTP_PORT, and network access.";
+  }
+
+  return "Reminder email could not be sent right now";
+}
+
 function normalizeBoolean(value, fallbackValue = false) {
   if (typeof value === "boolean") {
     return value;
@@ -1403,12 +1423,25 @@ async function sendCandidateReminder(req, res, next) {
         data: result,
       });
     } catch (emailError) {
-      return res.status(500).json({
+      const payload = buildCandidateReminderPayload(booking);
+      const emailDelivery = {
+        sent: false,
+        message: getReminderMailFailureMessage(emailError),
+      };
+
+      console.error("[candidate-reminder-email]", emailError?.message || emailError);
+
+      return res.status(502).json({
         success: false,
-        message:
-          emailError.message === "SMTP is not configured"
-            ? "SMTP is not configured"
-            : "Reminder email could not be sent right now",
+        message: emailDelivery.message,
+        data: {
+          emailSent: false,
+          emailDelivery,
+          bookingId: String(booking._id),
+          candidate: payload.row.candidate,
+          course: payload.row.enrolledCourse,
+          progress: payload.row.progress,
+        },
       });
     }
   } catch (error) {
@@ -1446,15 +1479,20 @@ async function sendStuckCandidateReminders(req, res, next) {
         }
       } catch (emailError) {
         const payload = buildCandidateReminderPayload(booking, now);
+        const reason = getReminderMailFailureMessage(emailError);
+
+        console.error("[stuck-candidate-reminder-email]", emailError?.message || emailError);
+
         failed.push({
           bookingId: String(booking._id),
           candidate: payload.row.candidate,
           course: payload.row.enrolledCourse,
           progress: payload.row.progress,
-          reason:
-            emailError.message === "SMTP is not configured"
-              ? "SMTP is not configured"
-              : "Reminder email could not be sent right now",
+          reason,
+          emailDelivery: {
+            sent: false,
+            message: reason,
+          },
         });
 
         if (emailError.message === "SMTP is not configured") {
@@ -1463,7 +1501,8 @@ async function sendStuckCandidateReminders(req, res, next) {
       }
     }
 
-    const statusCode = sent.length > 0 || stuckBookings.length === 0 ? 200 : 500;
+    const statusCode = sent.length > 0 || stuckBookings.length === 0 ? 200 : 502;
+    const firstFailureReason = failed[0]?.reason || "Stuck candidate reminder emails could not be sent";
 
     return res.status(statusCode).json({
       success: statusCode === 200,
@@ -1471,7 +1510,7 @@ async function sendStuckCandidateReminders(req, res, next) {
         stuckBookings.length === 0
           ? "No stuck candidates under 50% progress found"
           : failed.length > 0 && sent.length === 0
-            ? "Stuck candidate reminder emails could not be sent"
+            ? firstFailureReason
             : "Stuck candidate reminder emails processed",
       data: {
         threshold: 50,

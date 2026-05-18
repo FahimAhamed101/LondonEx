@@ -214,8 +214,23 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "candidates", "{{candidateId}}", "reminder"]
             },
-            "description": "Sends a progress reminder email to one candidate booking row."
-          }
+            "description": "Sends a progress reminder email to one candidate booking row. If SMTP fails, the API returns 502 with data.emailDelivery.message explaining the SMTP issue."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Reminder request handled', () => pm.expect([200, 400, 502]).to.include(pm.response.code));",
+                  "if (pm.response.code === 502) {",
+                  "  pm.test('SMTP failure reason is returned', () => pm.expect(json.data && json.data.emailDelivery && json.data.emailDelivery.message).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Send Stuck Candidate Reminders Under 50 Percent",
@@ -229,8 +244,23 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "candidates", "stuck", "reminders"]
             },
-            "description": "Sends reminder emails to all non-cancelled candidates whose progress is less than 50%."
-          }
+            "description": "Sends reminder emails to all non-cancelled candidates whose progress is less than 50%. If SMTP fails for all matched candidates, the API returns 502 and each failed item includes reason and emailDelivery.message."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Bulk reminder request handled', () => pm.expect([200, 502]).to.include(pm.response.code));",
+                  "if (pm.response.code === 502) {",
+                  "  pm.test('Bulk SMTP failures include reasons', () => pm.expect(json.data && json.data.failed && json.data.failed.length).to.be.above(0));",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
