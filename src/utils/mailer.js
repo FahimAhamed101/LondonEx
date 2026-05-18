@@ -1,6 +1,7 @@
 const nodemailer = require("nodemailer");
 
 let transporter = null;
+const smtpTimeoutMs = Number(process.env.SMTP_TIMEOUT_MS) || 15000;
 
 function normalizeEnvValue(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -50,6 +51,9 @@ function getTransporter() {
     host: config.host,
     port: config.port,
     secure: config.port === 465,
+    connectionTimeout: smtpTimeoutMs,
+    greetingTimeout: smtpTimeoutMs,
+    socketTimeout: smtpTimeoutMs,
     auth: {
       user: config.user,
       pass: config.pass,

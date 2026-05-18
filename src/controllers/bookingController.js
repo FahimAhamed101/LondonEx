@@ -1275,6 +1275,26 @@ function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function getMailDeliveryFailureMessage(error) {
+  if (error?.message === "SMTP is not configured") {
+    return "SMTP is not configured";
+  }
+
+  if (error?.code === "EAUTH") {
+    return "SMTP authentication failed. Check SMTP_USER and SMTP_PASS.";
+  }
+
+  if (
+    error?.code === "ETIMEDOUT" ||
+    error?.code === "ESOCKET" ||
+    /timeout|timed out/i.test(error?.message || "")
+  ) {
+    return "SMTP server timed out. Check SMTP_HOST, SMTP_PORT, and network access.";
+  }
+
+  return "Training provider signature email could not be sent right now";
+}
+
 function validatePhoneNumber(phoneNumber) {
   return /^[0-9+\-\s()]{7,30}$/.test(phoneNumber);
 }
@@ -6388,25 +6408,49 @@ async function requestMyBookingTrainingProviderSignature(req, res, next) {
 
     await bookingResult.value.save();
 
-    await sendTrainingProviderSignatureRequestEmail({
-      to: requestPayload.email,
-      providerName: requestPayload.name,
-      candidateName: bookingResult.value.personalDetails?.fullName || "",
-      courseTitle: bookingResult.value.courseSnapshot?.title || "",
-      subject: requestPayload.subject,
-      message: requestPayload.message,
-      signatureLink,
-      signatureApiUrl,
-      expiresAt,
-    });
+    let emailDelivery = {
+      sent: false,
+      message: "",
+    };
 
-    return res.status(200).json({
-      success: true,
-      message: "Training provider signature request sent successfully",
+    try {
+      await sendTrainingProviderSignatureRequestEmail({
+        to: requestPayload.email,
+        providerName: requestPayload.name,
+        candidateName: bookingResult.value.personalDetails?.fullName || "",
+        courseTitle: bookingResult.value.courseSnapshot?.title || "",
+        subject: requestPayload.subject,
+        message: requestPayload.message,
+        signatureLink,
+        signatureApiUrl,
+        expiresAt,
+      });
+
+      emailDelivery = {
+        sent: true,
+        message: "Email sent successfully",
+      };
+    } catch (emailError) {
+      emailDelivery = {
+        sent: false,
+        message: getMailDeliveryFailureMessage(emailError),
+      };
+      console.error("[training-provider-signature-email]", emailError?.message || emailError);
+    }
+
+    return res.status(emailDelivery.sent ? 200 : 502).json({
+      success: emailDelivery.sent,
+      message: emailDelivery.sent
+        ? "Training provider signature request sent successfully"
+        : "Training provider signature request was saved, but email delivery failed",
       data: {
         requested: true,
+        emailSent: emailDelivery.sent,
+        emailDelivery,
         email: requestPayload.email,
         link: signatureLink,
+        signatureLink,
+        signatureApiUrl,
         expiresAt,
         screen: buildBookingFlowSignaturesScreen(bookingResult.value),
       },

@@ -54,7 +54,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "bookings", "{{bookingId}}", "flow", "signatures", "training-provider", "request"]
             },
-            "description": "Sends an email to the trainingProviderEmail. The email link opens {{frontendUrl}}/provider-signature/{token}. Copy data.link or the token from the email into providerSignatureToken for the next requests."
+            "description": "Sends an email to the trainingProviderEmail. The email link opens {{frontendUrl}}/provider-signature/{token}. If SMTP fails, the API returns 502 with data.link so you can still copy the token and test the provider upload page."
           },
           "event": [
             {
@@ -63,7 +63,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.test('Request sent', () => pm.response.to.have.status(200));",
+                  "pm.test('Request handled', () => pm.expect([200, 502]).to.include(pm.response.code));",
+                  "pm.test('Has signature link when request is saved', () => pm.expect(json.data && json.data.link).to.be.a('string'));",
                   "if (json.data && json.data.link) {",
                   "  const token = json.data.link.split('/').filter(Boolean).pop();",
                   "  pm.collectionVariables.set('providerSignatureToken', token);",
