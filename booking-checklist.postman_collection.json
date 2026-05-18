@@ -84,7 +84,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
             },
-            "description": "Public endpoint used by the provider link. Returns booking and provider details for the signature page."
+            "description": "Public endpoint used by the provider link. Returns booking/provider details and, after submit, the saved signature image in data.screen.signature.previewUrl/imageUrl/downloadUrl."
           }
         },
         {
@@ -103,8 +103,21 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
             },
-            "description": "Public endpoint. Saves a drawn signature from signatureData."
-          }
+            "description": "Public endpoint. Saves a drawn signature from signatureData and returns the submitted image in data.screen.signature.previewUrl."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Drawn signature submitted', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Submitted signature image returned', () => pm.expect(json.data && json.data.screen && json.data.screen.signature && json.data.screen.signature.previewUrl).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Submit Provider Signature - Upload File",
@@ -125,8 +138,23 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
             },
-            "description": "Public endpoint. Use multipart/form-data and let Postman set Content-Type. File fields accepted by the API: file, image, signature, candidateSignature."
-          }
+            "description": "Public endpoint. Use multipart/form-data and let Postman set Content-Type. File fields accepted by the API: file, image, signature, candidateSignature. Returns the submitted image in data.screen.signature.previewUrl."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Uploaded signature handled', () => pm.expect([200, 400]).to.include(pm.response.code));",
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('Submitted signature image returned', () => pm.expect(json.data && json.data.screen && json.data.screen.signature && json.data.screen.signature.previewUrl).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

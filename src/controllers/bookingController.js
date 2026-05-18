@@ -27,6 +27,7 @@ const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded"];
 const BOOKING_TABS = ["upcoming", "past", "cancelled"];
 const APPLICATION_STATUSES = ["draft", "submitted", "under_review", "approved", "rejected"];
 const CHECKLIST_VARIANTS = ["am2", "am2e", "am2e-v1"];
+const SIGNATURE_DATA_MAX_LENGTH = 500000;
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -1697,8 +1698,8 @@ function buildSignaturePayload(payload, options = {}) {
     return { error: "signatureData is required" };
   }
 
-  if (signatureData.length > 20000) {
-    return { error: "signatureData must be 20000 characters or fewer" };
+  if (signatureData.length > SIGNATURE_DATA_MAX_LENGTH) {
+    return { error: `signatureData must be ${SIGNATURE_DATA_MAX_LENGTH} characters or fewer` };
   }
 
   if (fileName.length > 255) {
@@ -2331,6 +2332,30 @@ function buildAdminBookingDocumentsPayload(booking) {
         ? Math.round((uploadedRequirementCount / requirements.length) * 100)
         : 0,
     },
+  };
+}
+
+function isRenderableSignatureImage(value) {
+  return /^(https?:\/\/|data:image\/|\/uploads\/)/i.test(normalizeString(value));
+}
+
+function mapSignatureForClient(signature = {}) {
+  const signatureData = normalizeString(signature.signatureData);
+  const imageAvailable = Boolean(signatureData && isRenderableSignatureImage(signatureData));
+
+  return {
+    status: signature.status || "not_signed",
+    signerName: signature.signerName || "",
+    signerEmail: signature.signerEmail || "",
+    signatureType: signature.signatureType || "",
+    fileName: signature.fileName || "",
+    requestedAt: signature.requestedAt || null,
+    signedAt: signature.signedAt || null,
+    signatureData,
+    imageUrl: imageAvailable ? signatureData : "",
+    previewUrl: imageAvailable ? signatureData : null,
+    downloadUrl: imageAvailable ? signatureData : null,
+    available: imageAvailable,
   };
 }
 
@@ -4338,6 +4363,14 @@ function buildBookingFlowSignaturesScreen(booking) {
   const providerSignatureStatus = getTrainingProviderSignatureStatus(booking);
   const requestDetails = booking.trainingProviderSignatureRequest || {};
   const providerLink = requestDetails.token ? getTrainingProviderSignatureLink(requestDetails.token) : "";
+  const candidateSignature = {
+    ...mapSignatureForClient(booking.candidateSignature || {}),
+    status: candidateSignatureStatus,
+  };
+  const trainingProviderSignature = {
+    ...mapSignatureForClient(booking.trainingProviderSignature || {}),
+    status: providerSignatureStatus,
+  };
 
   return {
     steps: buildBookingFlowSteps("signatures"),
@@ -4352,6 +4385,7 @@ function buildBookingFlowSignaturesScreen(booking) {
         id: "candidate",
         label: "Candidate",
         status: candidateSignatureStatus,
+        signature: candidateSignature,
         action: {
           label: "Submit Signature",
           method: "POST",
@@ -4370,6 +4404,7 @@ function buildBookingFlowSignaturesScreen(booking) {
         id: "training_provider",
         label: "Training Provider",
         status: providerSignatureStatus,
+        signature: trainingProviderSignature,
         action: {
           label: "Ask for signed",
           method: "POST",
@@ -4541,6 +4576,8 @@ function buildBookingFlowReviewScreen(booking) {
 function buildTrainingProviderSignatureScreen(booking) {
   const request = booking.trainingProviderSignatureRequest || {};
   const signature = booking.trainingProviderSignature || {};
+  const signatureDetails = mapSignatureForClient(signature);
+  const isSigned = signatureDetails.status === "signed";
 
   return {
     title: "Training Provider Signature",
@@ -4555,16 +4592,12 @@ function buildTrainingProviderSignatureScreen(booking) {
       courseTitle: booking.courseSnapshot?.title || "",
       candidateName: booking.personalDetails?.fullName || "",
     },
-    signature: {
-      status: signature.status || "not_signed",
-      signedAt: signature.signedAt || null,
-      signerName: signature.signerName || "",
-      signerEmail: signature.signerEmail || "",
-    },
+    signature: signatureDetails,
     actions: {
       submit: {
         label: "Submit Signature",
         method: "POST",
+        enabled: !isSigned,
         apiUrl: request.token ? `/api/bookings/provider-signature/${request.token}` : "",
         contentType: "multipart/form-data",
         uploadFields: ["file", "image", "signature", "candidateSignature"],
@@ -4714,21 +4747,12 @@ function mapBookingDetail(booking, options = {}) {
       postcode: booking.trainingProviderDetails?.postcode || "",
     },
     candidateSignature: {
+      ...mapSignatureForClient(booking.candidateSignature || {}),
       status: booking.candidateSignature?.status || getCandidateSignatureStatus(booking),
-      signerName: booking.candidateSignature?.signerName || "",
-      signerEmail: booking.candidateSignature?.signerEmail || "",
-      signatureType: booking.candidateSignature?.signatureType || "",
-      fileName: booking.candidateSignature?.fileName || "",
-      signedAt: booking.candidateSignature?.signedAt || null,
     },
     trainingProviderSignature: {
+      ...mapSignatureForClient(booking.trainingProviderSignature || {}),
       status: booking.trainingProviderSignature?.status || getTrainingProviderSignatureStatus(booking),
-      signerName: booking.trainingProviderSignature?.signerName || "",
-      signerEmail: booking.trainingProviderSignature?.signerEmail || "",
-      signatureType: booking.trainingProviderSignature?.signatureType || "",
-      fileName: booking.trainingProviderSignature?.fileName || "",
-      signedAt: booking.trainingProviderSignature?.signedAt || null,
-      requestedAt: booking.trainingProviderSignature?.requestedAt || null,
     },
     trainingProviderSignatureRequest: {
       email: booking.trainingProviderSignatureRequest?.email || "",
@@ -5859,6 +5883,22 @@ async function submitTrainingProviderSignatureByToken(req, res, next) {
     }
 
     const request = bookingResult.value.trainingProviderSignatureRequest || {};
+    const existingSignature = bookingResult.value.trainingProviderSignature || {};
+
+    if (
+      existingSignature.status === "signed" &&
+      normalizeString(existingSignature.signatureData)
+    ) {
+      return res.status(200).json({
+        success: true,
+        message: "Training provider signature already submitted",
+        data: {
+          booking: mapBookingDetail(bookingResult.value),
+          screen: buildTrainingProviderSignatureScreen(bookingResult.value),
+        },
+      });
+    }
+
     const signatureResult = buildSignaturePayload({
       ...(req.body || {}),
       signatureData: req.uploadedSignatureFile?.fileUrl || req.body?.signatureData,
@@ -5892,7 +5932,7 @@ async function submitTrainingProviderSignatureByToken(req, res, next) {
     };
     bookingResult.value.trainingProviderSignatureRequest = {
       ...(request.toObject ? request.toObject() : request),
-      token: "",
+      token: request.token || normalizeString(req.params.token),
     };
 
     await bookingResult.value.save();

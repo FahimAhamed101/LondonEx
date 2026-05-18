@@ -29,7 +29,7 @@ function parseOriginList(value) {
 
 const allowedOrigins = parseOriginList(
   process.env.CORS_ALLOWED_ORIGINS ||
-    "http://localhost:3003,http://localhost:5173,http://127.0.0.1:3003,https://london-essex-dashboard-ia9s.vercel.app,https://london-essex-br36.vercel.app"
+    "http://localhost:3000,http://localhost:3003,http://localhost:5173,http://127.0.0.1:3003,https://london-essex-dashboard-ia9s.vercel.app,https://london-essex-br36.vercel.app"
 );
 
 const allowedOriginPatterns = [
@@ -49,6 +49,103 @@ function isOriginAllowed(origin) {
   }
 
   return allowedOriginPatterns.some((pattern) => pattern.test(normalizedOrigin));
+}
+
+function sanitizeForLog(value, depth = 0) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (Buffer.isBuffer(value)) {
+    return `[Buffer ${value.length} bytes]`;
+  }
+
+  if (typeof value === "string") {
+    if (value.startsWith("data:image/")) {
+      return `[image data url ${value.length} chars]`;
+    }
+
+    return value.length > 500 ? `${value.slice(0, 500)}...[${value.length} chars]` : value;
+  }
+
+  if (typeof value !== "object") {
+    return value;
+  }
+
+  if (depth >= 3) {
+    return Array.isArray(value) ? `[Array ${value.length}]` : "[Object]";
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 20).map((item) => sanitizeForLog(item, depth + 1));
+  }
+
+  const redactedKeys = new Set([
+    "authorization",
+    "cookie",
+    "password",
+    "pass",
+    "token",
+    "accessToken",
+    "refreshToken",
+    "adminToken",
+    "userToken",
+    "signatureData",
+  ]);
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entryValue]) => [
+      key,
+      redactedKeys.has(key) ? "[redacted]" : sanitizeForLog(entryValue, depth + 1),
+    ])
+  );
+}
+
+function summarizeFilesForLog(files) {
+  if (!files) {
+    return undefined;
+  }
+
+  if (Array.isArray(files)) {
+    return files.map((file) => ({
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+    }));
+  }
+
+  return Object.fromEntries(
+    Object.entries(files).map(([field, fieldFiles]) => [
+      field,
+      Array.isArray(fieldFiles)
+        ? fieldFiles.map((file) => ({
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size,
+          }))
+        : sanitizeForLog(fieldFiles),
+    ])
+  );
+}
+
+function logRequestDetails(req, res, startTime) {
+  const durationMs = Date.now() - startTime;
+  const payload = {
+    method: req.method,
+    url: req.originalUrl,
+    statusCode: res.statusCode,
+    durationMs,
+    origin: req.headers.origin || null,
+    ip: req.ip,
+    query: sanitizeForLog(req.query),
+    params: sanitizeForLog(req.params),
+    body: sanitizeForLog(req.body),
+    uploadedFile: sanitizeForLog(req.uploadedDocument || req.uploadedSignatureFile),
+    files: summarizeFilesForLog(req.files),
+  };
+
+  console.log("[api]", JSON.stringify(payload));
 }
 
 const app = express();
@@ -75,9 +172,8 @@ const corsOptions = {
 };
 
 app.use((req, res, next) => {
-  console.log(
-    `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} origin=${req.headers.origin || "n/a"}`
-  );
+  req.requestStartTime = Date.now();
+  console.log(`[api:start] ${req.method} ${req.originalUrl} origin=${req.headers.origin || "n/a"}`);
 
   return next();
 });
@@ -89,6 +185,14 @@ app.use("/api/stripe", stripeRoutes);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    logRequestDetails(req, res, req.requestStartTime || Date.now());
+  });
+
+  return next();
+});
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({

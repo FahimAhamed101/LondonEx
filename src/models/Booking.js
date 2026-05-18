@@ -511,7 +511,7 @@ const bookingSignatureSchema = new mongoose.Schema(
     signatureData: {
       type: String,
       trim: true,
-      maxlength: 20000,
+      maxlength: 500000,
       default: "",
     },
     fileName: {

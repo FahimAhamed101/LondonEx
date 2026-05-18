@@ -21,6 +21,12 @@ type SignatureScreen = {
     signedAt: string | null;
     signerName: string;
     signerEmail: string;
+    signatureType: string;
+    fileName: string;
+    imageUrl: string;
+    previewUrl: string | null;
+    downloadUrl: string | null;
+    available: boolean;
   };
   actions: {
     submit: {
@@ -276,9 +282,23 @@ export default function ProviderSignaturePage() {
               </div>
 
               {isSigned ? (
-                <div className="flex items-center gap-3 rounded-xl border border-[#b8ebd2] bg-[#f0fff7] px-4 py-4 text-[#0f8f5d]">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span>This request has already been signed.</span>
+                <div className="rounded-xl border border-[#b8ebd2] bg-[#f0fff7] px-4 py-4 text-[#0f8f5d]">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>This request has already been signed.</span>
+                  </div>
+                  {screen.signature.previewUrl ? (
+                    <div className="mt-4 rounded-lg border border-[#b8ebd2] bg-white p-3">
+                      <div
+                        aria-label="Training provider signature"
+                        role="img"
+                        className="h-32 w-full bg-contain bg-center bg-no-repeat"
+                        style={{
+                          backgroundImage: `url("${screen.signature.previewUrl}")`,
+                        }}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <>
