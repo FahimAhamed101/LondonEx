@@ -1240,7 +1240,7 @@ function buildBookingChecklistFlowResponse(booking) {
     documents: {
       ...(responseData.flow?.documents || {}),
       requirements: documentPayload.requirements,
-      uploadedItems: documentPayload.uploadedItems,
+      uploadedItems: documentPayload.documentItems,
       completion: documentPayload.completion,
       uploadApiUrl: documentPayload.uploadApiUrl,
     },
@@ -2315,7 +2315,9 @@ function buildUploadedDocumentItems(booking) {
 }
 
 function buildAdminBookingDocumentsPayload(booking) {
-  const uploadedItems = buildUploadedDocumentItems(booking);
+  const documentItems = buildUploadedDocumentItems(booking);
+  const signatureItems = buildSignatureDocumentItems(booking);
+  const uploadedItems = [...documentItems, ...signatureItems];
   const requirements = buildDocumentRequirements(booking);
   const uploadedRequirementCount = requirements.filter((requirement) => requirement.uploaded).length;
 
@@ -2324,6 +2326,9 @@ function buildAdminBookingDocumentsPayload(booking) {
     uploadApiUrl: `/api/bookings/${booking._id}/flow/documents/upload`,
     items: uploadedItems,
     uploadedItems,
+    documentItems,
+    signatureItems,
+    signatures: buildBookingSignaturesPayload(booking),
     requirements,
     completion: {
       uploadedCount: uploadedRequirementCount,
@@ -2335,13 +2340,35 @@ function buildAdminBookingDocumentsPayload(booking) {
   };
 }
 
+function getSignatureMimeType(value, fileName = "") {
+  const normalizedValue = normalizeString(value);
+  const dataUrlMatch = normalizedValue.match(/^data:([^;,]+)[;,]/i);
+
+  if (dataUrlMatch) {
+    return dataUrlMatch[1].toLowerCase();
+  }
+
+  const normalizedFileName = normalizeString(fileName).toLowerCase();
+
+  if (normalizedFileName.endsWith(".jpg") || normalizedFileName.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+
+  if (normalizedFileName.endsWith(".webp")) {
+    return "image/webp";
+  }
+
+  return "image/png";
+}
+
 function isRenderableSignatureImage(value) {
-  return /^(https?:\/\/|data:image\/|\/uploads\/)/i.test(normalizeString(value));
+  return /^(https?:\/\/|\/uploads\/)/i.test(normalizeString(value));
 }
 
 function mapSignatureForClient(signature = {}) {
   const signatureData = normalizeString(signature.signatureData);
   const imageAvailable = Boolean(signatureData && isRenderableSignatureImage(signatureData));
+  const signatureUrl = imageAvailable ? signatureData : "";
 
   return {
     status: signature.status || "not_signed",
@@ -2351,21 +2378,118 @@ function mapSignatureForClient(signature = {}) {
     fileName: signature.fileName || "",
     requestedAt: signature.requestedAt || null,
     signedAt: signature.signedAt || null,
-    signatureData,
-    imageUrl: imageAvailable ? signatureData : "",
-    previewUrl: imageAvailable ? signatureData : null,
-    downloadUrl: imageAvailable ? signatureData : null,
+    signatureData: signatureUrl,
+    imageUrl: signatureUrl,
+    previewUrl: signatureUrl || null,
+    downloadUrl: signatureUrl || null,
     available: imageAvailable,
   };
 }
 
+function buildSignatureDocumentItem(booking, config) {
+  const details = {
+    ...mapSignatureForClient(config.signature || {}),
+    status: config.status,
+  };
+
+  if (!details.available) {
+    return null;
+  }
+
+  return {
+    id: `${booking._id}-${config.id}-signature`,
+    type: config.type,
+    label: config.label,
+    name: `${config.label} Signature`,
+    fileName: details.fileName || `${config.type}.png`,
+    description: `${config.label} signature submitted by ${details.signerName || "signer"}.`,
+    category: "signature",
+    signatureRole: config.id,
+    isDerived: false,
+    available: true,
+    previewUrl: details.previewUrl,
+    downloadUrl: details.downloadUrl,
+    fileUrl: details.imageUrl || details.signatureData,
+    mimeType: getSignatureMimeType(details.signatureData, details.fileName),
+    uploadedAt: details.signedAt,
+    signedAt: details.signedAt,
+    signerName: details.signerName,
+    signerEmail: details.signerEmail,
+    signatureType: details.signatureType,
+    signature: details,
+  };
+}
+
+function buildSignatureDocumentItems(booking) {
+  return [
+    buildSignatureDocumentItem(booking, {
+      id: "candidate",
+      type: "candidate_signature",
+      label: "Candidate",
+      status: getCandidateSignatureStatus(booking),
+      signature: booking.candidateSignature,
+    }),
+    buildSignatureDocumentItem(booking, {
+      id: "training-provider",
+      type: "training_provider_signature",
+      label: "Training Provider",
+      status: getTrainingProviderSignatureStatus(booking),
+      signature: booking.trainingProviderSignature,
+    }),
+  ].filter(Boolean);
+}
+
+function buildBookingSignaturesPayload(booking) {
+  const signatureItems = buildSignatureDocumentItems(booking);
+  const signatureByRole = new Map(signatureItems.map((item) => [item.signatureRole, item]));
+  const candidate = {
+    ...mapSignatureForClient(booking.candidateSignature || {}),
+    status: getCandidateSignatureStatus(booking),
+  };
+  const trainingProvider = {
+    ...mapSignatureForClient(booking.trainingProviderSignature || {}),
+    status: getTrainingProviderSignatureStatus(booking),
+  };
+
+  return {
+    title: "Signatures",
+    candidate: {
+      ...candidate,
+      document: signatureByRole.get("candidate") || null,
+    },
+    trainingProvider: {
+      ...trainingProvider,
+      document: signatureByRole.get("training-provider") || null,
+    },
+    items: [
+      {
+        id: "candidate",
+        label: "Candidate",
+        ...candidate,
+        document: signatureByRole.get("candidate") || null,
+      },
+      {
+        id: "training_provider",
+        label: "Training Provider",
+        ...trainingProvider,
+        document: signatureByRole.get("training-provider") || null,
+      },
+    ],
+  };
+}
+
 function buildBookingDocuments(booking) {
-  const uploadedItems = buildUploadedDocumentItems(booking);
+  const documentItems = buildUploadedDocumentItems(booking);
+  const signatureItems = buildSignatureDocumentItems(booking);
+  const uploadedItems = [...documentItems, ...signatureItems];
 
   return {
     title: "Uploaded Documents",
     isDerived: false,
     items: uploadedItems,
+    documentItems,
+    signatureItems,
+    signatures: buildBookingSignaturesPayload(booking),
     downloadAll: {
       label: "Download all",
       available: false,
@@ -4374,6 +4498,7 @@ function buildBookingFlowSignaturesScreen(booking) {
 
   return {
     steps: buildBookingFlowSteps("signatures"),
+    signatures: buildBookingSignaturesPayload(booking),
     card: {
       title: booking.personalDetails?.fullName || booking.courseSnapshot?.title || "Booking",
       subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
@@ -4754,6 +4879,7 @@ function mapBookingDetail(booking, options = {}) {
       ...mapSignatureForClient(booking.trainingProviderSignature || {}),
       status: booking.trainingProviderSignature?.status || getTrainingProviderSignatureStatus(booking),
     },
+    signatures: buildBookingSignaturesPayload(booking),
     trainingProviderSignatureRequest: {
       email: booking.trainingProviderSignatureRequest?.email || "",
       name: booking.trainingProviderSignatureRequest?.name || "",

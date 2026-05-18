@@ -103,7 +103,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
             },
-            "description": "Public endpoint. Saves a drawn signature from signatureData and returns the submitted image in data.screen.signature.previewUrl."
+            "description": "Public endpoint. Uploads the drawn signatureData image to Cloudinary, saves the Cloudinary URL, and returns it in data.screen.signature.previewUrl."
           },
           "event": [
             {
@@ -113,7 +113,7 @@
                 "exec": [
                   "const json = pm.response.json();",
                   "pm.test('Drawn signature submitted', () => pm.expect(pm.response.code).to.equal(200));",
-                  "pm.test('Submitted signature image returned', () => pm.expect(json.data && json.data.screen && json.data.screen.signature && json.data.screen.signature.previewUrl).to.be.a('string'));"
+                  "pm.test('Submitted Cloudinary signature URL returned', () => pm.expect(json.data && json.data.screen && json.data.screen.signature && json.data.screen.signature.previewUrl).to.match(/^https?:\\/\\//));"
                 ]
               }
             }
@@ -138,7 +138,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "bookings", "provider-signature", "{{providerSignatureToken}}"]
             },
-            "description": "Public endpoint. Use multipart/form-data and let Postman set Content-Type. File fields accepted by the API: file, image, signature, candidateSignature. Returns the submitted image in data.screen.signature.previewUrl."
+            "description": "Public endpoint. Use multipart/form-data and let Postman set Content-Type. File fields accepted by the API: file, image, signature, candidateSignature. Uploads to Cloudinary and returns the Cloudinary URL in data.screen.signature.previewUrl."
           },
           "event": [
             {
@@ -149,7 +149,7 @@
                   "const json = pm.response.json();",
                   "pm.test('Uploaded signature handled', () => pm.expect([200, 400]).to.include(pm.response.code));",
                   "if (pm.response.code === 200) {",
-                  "  pm.test('Submitted signature image returned', () => pm.expect(json.data && json.data.screen && json.data.screen.signature && json.data.screen.signature.previewUrl).to.be.a('string'));",
+                  "  pm.test('Submitted Cloudinary signature URL returned', () => pm.expect(json.data && json.data.screen && json.data.screen.signature && json.data.screen.signature.previewUrl).to.match(/^https?:\\/\\//));",
                   "}"
                 ]
               }
@@ -227,7 +227,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "bookings", "{{bookingId}}"]
             },
-            "description": "Returns uploaded document URLs in data.booking.documents.items, uploadedDocuments.items, and checklistFlow.flow.documents.uploadedItems."
+            "description": "Returns uploaded document URLs in data.booking.documents.items, uploadedDocuments.items, and checklistFlow.flow.documents.uploadedItems. Candidate and training provider signatures are returned as Cloudinary URLs in data.booking.signatures and as signature document cards in data.booking.documents.signatureItems and data.booking.uploadedDocuments.signatureItems."
           }
         },
         {

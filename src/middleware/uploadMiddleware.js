@@ -84,7 +84,7 @@ function getStringFieldValue(body, fieldName) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function parseInlineImageDataUrl(value) {
+function parseInlineImageDataUrl(value, originalNamePrefix = "image") {
   if (!value.startsWith("data:")) {
     return null;
   }
@@ -120,7 +120,7 @@ function parseInlineImageDataUrl(value) {
   return {
     buffer,
     mimetype: mimeType,
-    originalname: `course-image.${imageExtensionsByMimeType[mimeType] || "jpg"}`,
+    originalname: `${originalNamePrefix}.${imageExtensionsByMimeType[mimeType] || "jpg"}`,
   };
 }
 
@@ -131,7 +131,7 @@ async function uploadInlineCourseImage(req) {
 
   for (const fieldName of inlineCourseImageFields) {
     const fieldValue = getStringFieldValue(req.body, fieldName);
-    const inlineImage = fieldValue ? parseInlineImageDataUrl(fieldValue) : null;
+    const inlineImage = fieldValue ? parseInlineImageDataUrl(fieldValue, "course-image") : null;
 
     if (!inlineImage) {
       continue;
@@ -263,6 +263,23 @@ function uploadBookingSignatureImage(req, res, next) {
             "londonessexelec/bookings/signatures",
             "image"
           );
+        } else {
+          const inlineSignature = parseInlineImageDataUrl(
+            getStringFieldValue(req.body, "signatureData") ||
+              getStringFieldValue(req.body, "signatureImageUrl"),
+            "signature-image"
+          );
+
+          if (inlineSignature) {
+            req.uploadedSignatureFile = await uploadFileToCloudinary(
+              inlineSignature,
+              "londonessexelec/bookings/signatures",
+              "image"
+            );
+            req.body.signatureData = req.uploadedSignatureFile.fileUrl;
+            req.body.fileUrl = req.uploadedSignatureFile.fileUrl;
+            req.body.fileName = req.body.fileName || req.uploadedSignatureFile.fileName;
+          }
         }
 
         return next();
