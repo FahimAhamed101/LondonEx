@@ -28,6 +28,7 @@ const BOOKING_TABS = ["upcoming", "past", "cancelled"];
 const APPLICATION_STATUSES = ["draft", "submitted", "under_review", "approved", "rejected"];
 const CHECKLIST_VARIANTS = ["am2", "am2e", "am2e-v1"];
 const SIGNATURE_DATA_MAX_LENGTH = 500000;
+const VAT_RATE = 0.2;
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -160,18 +161,93 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function roundMoney(amount) {
+  return Math.round(Number(amount || 0) * 100) / 100;
+}
+
+function getFractionDigitCount(amount) {
+  return Number.isInteger(roundMoney(amount)) ? 0 : 2;
+}
+
 function formatDisplayPrice(amount, currency) {
+  const normalizedAmount = roundMoney(amount);
+  const fractionDigits = getFractionDigitCount(normalizedAmount);
+
   try {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
       currency: currency || "GBP",
-      minimumFractionDigits: 2,
+      minimumFractionDigits: fractionDigits,
       maximumFractionDigits: 2,
-    }).format(amount || 0);
+    }).format(normalizedAmount);
   } catch (error) {
-    const normalizedAmount = Number(amount || 0).toFixed(2);
-    return `${currency || "GBP"} ${normalizedAmount}`;
+    return `${currency || "GBP"} ${normalizedAmount.toFixed(fractionDigits)}`;
   }
+}
+
+function calculateVatPricing(baseAmount, vatEnabled) {
+  const amount = roundMoney(baseAmount);
+  const normalizedVatEnabled = Boolean(vatEnabled);
+  const vatAmount = normalizedVatEnabled ? roundMoney(amount * VAT_RATE) : 0;
+  const totalAmount = roundMoney(amount + vatAmount);
+
+  return {
+    amount,
+    vatEnabled: normalizedVatEnabled,
+    vatRate: normalizedVatEnabled ? VAT_RATE : 0,
+    vatAmount,
+    totalAmount,
+  };
+}
+
+function buildPricingDisplay(payload) {
+  const amount = roundMoney(payload?.amount ?? payload?.price ?? 0);
+  const currency = payload?.currency || "GBP";
+  const vatEnabled = Boolean(payload?.vatEnabled);
+  const vatAmount = vatEnabled ? roundMoney(payload?.vatAmount ?? amount * VAT_RATE) : 0;
+  const totalAmount = roundMoney(payload?.totalAmount ?? payload?.totalPrice ?? amount + vatAmount);
+  const baseDisplayPrice = formatDisplayPrice(amount, currency);
+  const totalDisplayPrice = formatDisplayPrice(totalAmount, currency);
+
+  return {
+    amount,
+    baseAmount: amount,
+    currency,
+    vatEnabled,
+    vatIncluded: vatEnabled,
+    vatRate: vatEnabled ? VAT_RATE : 0,
+    vatPercentage: vatEnabled ? VAT_RATE * 100 : 0,
+    vatAmount,
+    totalAmount,
+    displayPrice: vatEnabled
+      ? `${baseDisplayPrice} + VAT (${totalDisplayPrice})`
+      : baseDisplayPrice,
+    baseDisplayPrice,
+    totalDisplayPrice,
+    note: vatEnabled ? `+ VAT (${totalDisplayPrice})` : "",
+  };
+}
+
+function buildBookingCoursePricing(booking) {
+  const courseSnapshot = booking.courseSnapshot || {};
+  const amount = roundMoney(courseSnapshot.price ?? booking.payment?.amount ?? 0);
+  const currency = booking.payment?.currency || courseSnapshot.currency || "GBP";
+  const vatEnabled = Boolean(courseSnapshot.vatEnabled);
+  const fallbackPricing = calculateVatPricing(amount, vatEnabled);
+  const storedTotalAmount = Number(courseSnapshot.totalPrice);
+  const paymentAmount = booking.payment?.amount;
+  const totalAmount =
+    Number.isFinite(storedTotalAmount) && (storedTotalAmount > 0 || amount === 0)
+      ? storedTotalAmount
+      : paymentAmount ?? fallbackPricing.totalAmount;
+
+  return buildPricingDisplay({
+    amount,
+    currency,
+    vatEnabled,
+    vatAmount: courseSnapshot.vatAmount ?? fallbackPricing.vatAmount,
+    totalAmount,
+  });
 }
 
 function formatDisplayDate(value) {
@@ -1250,6 +1326,8 @@ function buildBookingChecklistFlowResponse(booking) {
 }
 
 function buildCourseSnapshot(course) {
+  const pricing = calculateVatPricing(course.price || 0, course.vatEnabled);
+
   return {
     title: course.title,
     slug: course.slug,
@@ -1259,7 +1337,11 @@ function buildCourseSnapshot(course) {
     assessmentVariant: normalizeChecklistVariant(course.assessmentVariant) || "am2",
     location: course.location || "",
     thumbnailUrl: course.thumbnailUrl || course.galleryImages?.[0] || "",
-    price: course.price || 0,
+    price: pricing.amount,
+    vatEnabled: pricing.vatEnabled,
+    vatRate: pricing.vatRate,
+    vatAmount: pricing.vatAmount,
+    totalPrice: pricing.totalAmount,
     currency: course.currency || "GBP",
   };
 }
@@ -4739,6 +4821,7 @@ function mapBookingSummary(booking, options = {}) {
   const sessionEndDateTime = booking.session?.endDateTime || null;
   const sessionLocation = booking.session?.location || booking.courseSnapshot?.location || "";
   const checklistVariant = getChecklistVariantForBooking(booking);
+  const coursePricing = buildBookingCoursePricing(booking);
 
   const summary = {
     id: booking._id,
@@ -4771,12 +4854,11 @@ function mapBookingSummary(booking, options = {}) {
       qualification: booking.courseSnapshot?.qualification || "",
       assessmentVariant: booking.courseSnapshot?.assessmentVariant || checklistVariant,
       thumbnailUrl: booking.courseSnapshot?.thumbnailUrl || "",
-      price: booking.payment?.amount ?? booking.courseSnapshot?.price ?? 0,
+      price: coursePricing.totalAmount,
+      basePrice: coursePricing.amount,
       currency: booking.payment?.currency || booking.courseSnapshot?.currency || "GBP",
-      displayPrice: formatDisplayPrice(
-        booking.payment?.amount ?? booking.courseSnapshot?.price ?? 0,
-        booking.payment?.currency || booking.courseSnapshot?.currency || "GBP"
-      ),
+      displayPrice: coursePricing.displayPrice,
+      pricing: coursePricing,
       detailsUrl: booking.courseSnapshot?.slug ? `/courses/${booking.courseSnapshot.slug}` : "",
     },
     actions: {
@@ -4905,6 +4987,7 @@ function mapBookingDetail(booking, options = {}) {
       amount: booking.payment?.amount ?? 0,
       currency: booking.payment?.currency || "GBP",
       displayAmount: formatDisplayPrice(booking.payment?.amount ?? 0, booking.payment?.currency || "GBP"),
+      pricing: buildBookingCoursePricing(booking),
       agreedToTerms: Boolean(booking.payment?.agreedToTerms),
       method: booking.payment?.method || "card",
       transactionId: booking.payment?.transactionId || "",
@@ -4959,6 +5042,8 @@ function mapAdminBookingDetail(booking) {
 }
 
 function buildCheckoutDetailsScreen(booking) {
+  const coursePricing = buildBookingCoursePricing(booking);
+
   return {
     steps: buildCheckoutSteps("details"),
     title: "Personal Details",
@@ -4972,12 +5057,11 @@ function buildCheckoutDetailsScreen(booking) {
       id: booking.course?._id || booking.course,
       title: booking.courseSnapshot?.title || "",
       slug: booking.courseSnapshot?.slug || "",
-      price: booking.payment?.amount ?? booking.courseSnapshot?.price ?? 0,
+      price: coursePricing.totalAmount,
+      basePrice: coursePricing.amount,
       currency: booking.payment?.currency || booking.courseSnapshot?.currency || "GBP",
-      displayPrice: formatDisplayPrice(
-        booking.payment?.amount ?? booking.courseSnapshot?.price ?? 0,
-        booking.payment?.currency || booking.courseSnapshot?.currency || "GBP"
-      ),
+      displayPrice: coursePricing.displayPrice,
+      pricing: coursePricing,
     },
     sections: [
       {
@@ -5015,6 +5099,7 @@ function buildPaymentScreen(booking) {
   const isPaid = paymentStatus === "paid";
   const isApproved = booking.applicationStatus === "approved";
   const useBookingFlowSteps = isAm2BookingFlow(booking);
+  const coursePricing = buildBookingCoursePricing(booking);
 
   return {
     steps: useBookingFlowSteps ? buildBookingFlowSteps("payment") : buildCheckoutSteps("payment"),
@@ -5048,6 +5133,7 @@ function buildPaymentScreen(booking) {
       amount: booking.payment?.amount ?? 0,
       currency: booking.payment?.currency || "GBP",
       displayAmount: formatDisplayPrice(booking.payment?.amount ?? 0, booking.payment?.currency || "GBP"),
+      pricing: coursePricing,
     },
     terms: {
       required: true,
@@ -5411,7 +5497,7 @@ async function createBooking(req, res, next) {
       };
       applyRegistrationPayloadToBooking(existingPendingBooking, registrationPayload);
       existingPendingBooking.payment.status = "pending";
-      existingPendingBooking.payment.amount = courseSnapshot.price;
+      existingPendingBooking.payment.amount = courseSnapshot.totalPrice ?? courseSnapshot.price;
       existingPendingBooking.payment.currency = courseSnapshot.currency;
       existingPendingBooking.payment.failureReason = "";
       existingPendingBooking.payment.method = "stripe";
@@ -5441,7 +5527,7 @@ async function createBooking(req, res, next) {
       status: "pending_payment",
       payment: {
         status: "pending",
-        amount: courseSnapshot.price,
+        amount: courseSnapshot.totalPrice ?? courseSnapshot.price,
         currency: courseSnapshot.currency,
         agreedToTerms: false,
         method: "stripe",

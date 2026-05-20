@@ -141,15 +141,19 @@ const courseSchema = new mongoose.Schema(
       maxlength: 10,
       default: "GBP",
     },
+    vatEnabled: {
+      type: Boolean,
+      default: false,
+    },
     vatIncluded: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     priceNote: {
       type: String,
       trim: true,
       maxlength: 120,
-      default: "inc VAT",
+      default: "",
     },
     thumbnailUrl: {
       type: String,

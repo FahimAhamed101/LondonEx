@@ -30,7 +30,10 @@ type CourseFormState = {
   location: string;
   totalSeats: string;
   price: string;
+  vatEnabled: boolean;
 };
+
+type CourseTextField = Exclude<keyof CourseFormState, "vatEnabled">;
 
 const initialFormState: CourseFormState = {
   courseName: "",
@@ -42,6 +45,7 @@ const initialFormState: CourseFormState = {
   location: "",
   totalSeats: "",
   price: "",
+  vatEnabled: false,
 };
 
 function getCourseStatusLabel(status: string) {
@@ -123,6 +127,7 @@ function formatCourseToForm(course: AdminCourse, sourceFallback = ""): CourseFor
       course.adminMeta?.totalSeats ?? course.capacity.totalSeats ?? "",
     ),
     price: String(course.pricing.amount ?? course.price ?? ""),
+    vatEnabled: Boolean(course.pricing.vatEnabled ?? course.pricing.vatIncluded),
   };
 }
 
@@ -223,10 +228,17 @@ export function CoursesManagementView() {
     setFormError(null);
   };
 
-  const updateField = (field: keyof CourseFormState, value: string) => {
+  const updateField = (field: CourseTextField, value: string) => {
     setForm((current) => ({
       ...current,
       [field]: value,
+    }));
+  };
+
+  const toggleVatEnabled = () => {
+    setForm((current) => ({
+      ...current,
+      vatEnabled: !current.vatEnabled,
     }));
   };
 
@@ -265,6 +277,7 @@ export function CoursesManagementView() {
       duration: form.duration.trim(),
       location: form.location.trim(),
       price: parsedPrice,
+      vatEnabled: form.vatEnabled,
       totalSeats: parsedSeats,
       sourceCourseId: selectedSourceOption?.id ?? null,
       sessionDate: form.date || undefined,
@@ -583,7 +596,7 @@ export function CoursesManagementView() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px]">
                   <div>
                     <label className="text-[12px] font-medium text-[#5e6ea9]">
                       Total Seats *
@@ -609,6 +622,24 @@ export function CoursesManagementView() {
                       }
                       className="mt-2 h-11 w-full rounded-[10px] border border-[#e2ebf8] bg-[#f4f9ff] px-4 text-[13px] text-[#4453a3] outline-none read-only:cursor-default"
                     />
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-medium text-[#5e6ea9]">
+                      VAT
+                    </label>
+                    <button
+                      type="button"
+                      aria-pressed={form.vatEnabled}
+                      disabled={isReadOnlyView}
+                      onClick={toggleVatEnabled}
+                      className={`mt-2 inline-flex h-11 w-full items-center justify-center rounded-[10px] border px-3 text-[13px] font-semibold transition disabled:cursor-default ${
+                        form.vatEnabled
+                          ? "border-[#19a9df] bg-[#1ea6df] text-white shadow-[0_10px_18px_rgba(30,166,223,0.18)]"
+                          : "border-[#d6e4f6] bg-white text-[#4453a3]"
+                      }`}
+                    >
+                      {form.vatEnabled ? "VAT On" : "VAT Off"}
+                    </button>
                   </div>
                 </div>
               </div>

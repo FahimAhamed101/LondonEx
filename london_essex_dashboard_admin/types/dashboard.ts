@@ -293,6 +293,8 @@ export type AdminCourse = {
   duration: string;
   price: number;
   currency: string;
+  vatEnabled?: boolean;
+  vatIncluded?: boolean;
   thumbnailUrl: string;
   tags: string[];
   isPublished: boolean;
@@ -304,9 +306,17 @@ export type AdminCourse = {
   };
   pricing: {
     amount: number;
+    baseAmount?: number;
     currency: string;
     displayPrice: string;
+    baseDisplayPrice?: string;
+    totalDisplayPrice?: string;
+    vatEnabled?: boolean;
     vatIncluded?: boolean;
+    vatRate?: number;
+    vatPercentage?: number;
+    vatAmount?: number;
+    totalAmount?: number;
     note?: string;
   };
   capacity: {
@@ -370,6 +380,7 @@ export type CreateAdminCourseRequest = {
   duration: string;
   location: string;
   price: number;
+  vatEnabled?: boolean;
   totalSeats: number;
   sourceCourseId?: string | null;
   sessionDate?: string;
@@ -982,6 +993,7 @@ export type MockRegistrationDataResponse = {
     trainingProviderDetails: Record<string, any>;
     privacyConfirmation: boolean;
   };
+  registrationFlow?: Record<string, any>;
   pdfCoverage: {
     coveredFields: string[];
     likelyMissingFields: Array<{

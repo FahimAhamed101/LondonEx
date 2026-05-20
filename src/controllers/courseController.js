@@ -5,6 +5,7 @@ const Booking = require("../models/Booking");
 
 const COURSE_STATUSES = ["available", "upcoming", "archived"];
 const ASSESSMENT_VARIANTS = ["am2", "am2e", "am2e-v1"];
+const VAT_RATE = 0.2;
 const POPULAR_COURSE_SEARCHES = [
   { label: "Gas Engineer", query: "Gas Engineer" },
   { label: "Electrical", query: "Electrical" },
@@ -270,6 +271,7 @@ function buildCoursePayload(payload, options = {}) {
   const titleKeys = ["title", "courseName", "name"];
   const totalSeatsKeys = ["totalSeats", "totalSeat", "seatCount", "seats", "seat", "total_seats"];
   const assessmentVariantKeys = ["assessmentVariant", "assessment_variant", "checklistVariant", "variant"];
+  const vatEnabledKeys = ["vatEnabled", "vatEligible", "vatIncluded", "hasVat", "chargeVat", "isVatEnabled"];
 
   const title = normalizeString(getFirstPayloadValue(payload, titleKeys));
   const customSlug = normalizeString(payload.slug);
@@ -540,8 +542,10 @@ function buildCoursePayload(payload, options = {}) {
     courseData.totalSeats = totalSeats;
   }
 
-  if (Object.prototype.hasOwnProperty.call(payload, "vatIncluded") || !partial) {
-    courseData.vatIncluded = normalizeBoolean(payload.vatIncluded, true);
+  if (hasAnyPayloadKey(payload, vatEnabledKeys) || !partial) {
+    const vatEnabled = normalizeBoolean(getFirstPayloadValue(payload, vatEnabledKeys), false);
+    courseData.vatEnabled = vatEnabled;
+    courseData.vatIncluded = vatEnabled;
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, "priceNote") || !partial) {
@@ -702,6 +706,7 @@ async function searchCourses(req, res, next) {
 
 function mapCourseSummary(course) {
   const primaryImage = course.thumbnailUrl || course.galleryImages?.[0] || "";
+  const pricing = buildCoursePricing(course);
 
   return {
     id: course._id,
@@ -714,12 +719,15 @@ function mapCourseSummary(course) {
     duration: course.duration,
     price: course.price,
     currency: course.currency,
+    vatEnabled: pricing.vatEnabled,
+    vatIncluded: pricing.vatEnabled,
     assessmentVariant: normalizeAssessmentVariant(course.assessmentVariant) || "am2",
     thumbnailUrl: primaryImage,
     tags: course.tags,
     isPublished: course.isPublished,
     createdAt: course.createdAt,
     updatedAt: course.updatedAt,
+    pricing,
   };
 }
 
@@ -758,11 +766,7 @@ function mapAdminCourseSummary(course, bookedSeats = 0) {
     ...summary,
     source: mapCourseSource(course),
     schedule: mapCourseSchedule(course),
-    pricing: {
-      amount: course.price,
-      currency: course.currency,
-      displayPrice: formatDisplayPrice(course.price, course.currency),
-    },
+    pricing: buildCoursePricing(course),
     capacity: mapCourseCapacity(course, bookedSeats),
     actions: {
       viewUrl: `/admin/courses/${course._id}`,
@@ -792,19 +796,56 @@ function applyUploadedImage(courseData, uploadedImageUrl, existingCourse) {
   return courseData;
 }
 
+function roundMoney(amount) {
+  return Math.round(Number(amount || 0) * 100) / 100;
+}
+
+function getFractionDigitCount(amount) {
+  return Number.isInteger(roundMoney(amount)) ? 0 : 2;
+}
+
 function formatDisplayPrice(amount, currency) {
   const safeCurrency = typeof currency === "string" && currency.trim().length >= 3 ? currency.trim() : "GBP";
+  const normalizedAmount = roundMoney(amount);
+  const fractionDigits = getFractionDigitCount(normalizedAmount);
+
   try {
     return new Intl.NumberFormat("en-GB", {
       style: "currency",
       currency: safeCurrency,
-      minimumFractionDigits: 2,
+      minimumFractionDigits: fractionDigits,
       maximumFractionDigits: 2,
-    }).format(amount || 0);
+    }).format(normalizedAmount);
   } catch (error) {
-    const normalizedAmount = Number(amount || 0).toFixed(2);
-    return `${safeCurrency} ${normalizedAmount}`;
+    return `${safeCurrency} ${normalizedAmount.toFixed(fractionDigits)}`;
   }
+}
+
+function buildCoursePricing(course) {
+  const amount = roundMoney(course.price);
+  const vatEnabled = Boolean(course.vatEnabled);
+  const vatAmount = vatEnabled ? roundMoney(amount * VAT_RATE) : 0;
+  const totalAmount = roundMoney(amount + vatAmount);
+  const baseDisplayPrice = formatDisplayPrice(amount, course.currency);
+  const totalDisplayPrice = formatDisplayPrice(totalAmount, course.currency);
+
+  return {
+    amount,
+    baseAmount: amount,
+    currency: course.currency || "GBP",
+    vatEnabled,
+    vatIncluded: vatEnabled,
+    vatRate: vatEnabled ? VAT_RATE : 0,
+    vatPercentage: vatEnabled ? VAT_RATE * 100 : 0,
+    vatAmount,
+    totalAmount,
+    displayPrice: vatEnabled
+      ? `${baseDisplayPrice} + VAT (${totalDisplayPrice})`
+      : baseDisplayPrice,
+    baseDisplayPrice,
+    totalDisplayPrice,
+    note: vatEnabled ? `+ VAT (${totalDisplayPrice})` : "",
+  };
 }
 
 function buildDefaultSections(course) {
@@ -972,11 +1013,8 @@ function mapCourseDetail(course) {
       galleryImages: normalizeStringArray(course.galleryImages, 8),
     },
     pricing: {
-      amount: course.price,
-      currency: course.currency,
-      displayPrice: formatDisplayPrice(course.price, course.currency),
-      vatIncluded: course.vatIncluded,
-      note: course.priceNote || (course.vatIncluded ? "inc VAT" : ""),
+      ...summary.pricing,
+      note: course.priceNote || summary.pricing.note,
     },
     cta: {
       label: "Book Now",
@@ -998,6 +1036,7 @@ function mapCatalogCourseCard(course, reservedSeats = 0) {
     bookedSeats: capacity.bookedSeats,
     remainingSeats: capacity.remainingSeats,
     capacity,
+    pricing: summary.pricing,
     badge: {
       label: course.status === "upcoming" ? "Upcoming" : course.status === "archived" ? "Archived" : "Available",
       tone: course.status,
@@ -1030,9 +1069,7 @@ function mapRelatedCourseCard(course) {
       tone: course.status,
     },
     pricing: {
-      amount: course.price,
-      currency: course.currency,
-      displayPrice: formatDisplayPrice(course.price, course.currency),
+      ...buildCoursePricing(course),
     },
     session: {
       date: formatDisplayDate(course.sessionDate),
@@ -1538,10 +1575,7 @@ function mapAdminCourseDetail(course, bookedSeats = 0) {
     ...detail,
     source: mapCourseSource(course),
     schedule: mapCourseSchedule(course),
-    pricing: {
-      ...detail.pricing,
-      displayPrice: formatDisplayPrice(course.price, course.currency),
-    },
+    pricing: buildCoursePricing(course),
     capacity: mapCourseCapacity(course, bookedSeats),
     adminMeta: {
       sourceCourseId: course.sourceCourse || null,

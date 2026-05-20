@@ -56,6 +56,25 @@ const bookingCourseSnapshotSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    vatEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    vatRate: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    vatAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    totalPrice: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
     currency: {
       type: String,
       trim: true,
