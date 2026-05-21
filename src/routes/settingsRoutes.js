@@ -9,6 +9,13 @@ const {
   getSecuritySettingsScreen,
   updatePasswordSettings,
   listLegalPages,
+  getPublicFaqPage,
+  getFaqSettingsScreen,
+  updateFaqPageContent,
+  addFaqItem,
+  updateFaqItem,
+  updateFaqItemVisibility,
+  deleteFaqItem,
   getPublicLegalPage,
   getLegalPageSettingsScreen,
   updateLegalPageContent,
@@ -23,6 +30,9 @@ const { uploadUserProfileImage } = require("../middleware/uploadMiddleware");
 const router = express.Router();
 
 router.get("/public/legal-pages/:slug", getPublicLegalPage);
+router.get("/public/faqs", getPublicFaqPage);
+router.get("/legal-pages/:slug", getLegalPageSettingsScreen);
+router.get("/faqs", getFaqSettingsScreen);
 
 router.use(requireAuth);
 
@@ -33,8 +43,12 @@ router.get("/notifications", getNotificationSettingsScreen);
 router.patch("/notifications", updateNotificationSettings);
 router.get("/security", getSecuritySettingsScreen);
 router.post("/security/password", updatePasswordSettings);
+router.patch("/faqs", requireRole("admin"), updateFaqPageContent);
+router.post("/faqs/items", requireRole("admin"), addFaqItem);
+router.patch("/faqs/items/:faqId/visibility", requireRole("admin"), updateFaqItemVisibility);
+router.patch("/faqs/items/:faqId", requireRole("admin"), updateFaqItem);
+router.delete("/faqs/items/:faqId", requireRole("admin"), deleteFaqItem);
 router.get("/legal-pages", requireRole("admin"), listLegalPages);
-router.get("/legal-pages/:slug", requireRole("admin"), getLegalPageSettingsScreen);
 router.patch("/legal-pages/:slug", requireRole("admin"), updateLegalPageContent);
 router.post("/legal-pages/:slug/sections", requireRole("admin"), addLegalPageSection);
 router.patch(

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+const FaqPage = require("../models/FaqPage");
 const LegalPage = require("../models/LegalPage");
 const User = require("../models/User");
 const { hashPassword, verifyPassword } = require("../utils/auth");
@@ -85,6 +86,31 @@ const LEGAL_PAGE_ALIASES = {
   "terms-and-conditions": "terms-and-conditions",
   privacy: "privacy-policy",
   "privacy-policy": "privacy-policy",
+};
+
+const FAQ_PAGE_DEFAULTS = {
+  key: "faq",
+  category: "SUPPORT",
+  title: "FAQ",
+  subtitle: "Add, remove, and update frequently asked questions for the public-facing FAQ section.",
+  screenDescription: "Manage the public frequently asked questions content.",
+  items: [
+    {
+      question: "Who can join London & Essex training courses?",
+      answer:
+        "Our courses are suitable for new entrants, career changers, and experienced tradespeople who want to upgrade their qualifications. We offer flexible training pathways depending on your current level and goals.",
+    },
+    {
+      question: "How do these courses help my career?",
+      answer:
+        "Our training supports career progression by helping learners gain recognised qualifications, practical skills, and confidence for site work, inspection, testing, and assessment pathways.",
+    },
+    {
+      question: "How secure is my data on this platform?",
+      answer:
+        "We use reasonable safeguards to protect personal data and limit access to authorised staff and service providers who need the information to support your enquiry, booking, or learner journey.",
+    },
+  ],
 };
 
 function normalizeString(value) {
@@ -218,8 +244,8 @@ function buildLegalSettingsTabs(activeTab) {
       id: "faq",
       label: "FAQ",
       active: activeTab === "faq",
-      apiUrl: null,
-      enabled: false,
+      apiUrl: "/api/settings/faqs",
+      enabled: true,
     },
   ];
 }
@@ -240,7 +266,15 @@ function buildLegalSettingsBreadcrumb(page) {
   ];
 }
 
-function buildSettingsSidebarProfile(user) {
+function buildFaqSettingsBreadcrumb() {
+  return [
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Setting", href: "/settings/profile" },
+    { label: "FAQ", href: "/settings/faq" },
+  ];
+}
+
+function buildSettingsSidebarProfile(user = {}) {
   return {
     name: user.name || "",
     email: user.email || "",
@@ -517,6 +551,88 @@ function normalizeLegalPageSections(sectionsPayload) {
   return { value: sections };
 }
 
+function normalizeFaqItem(itemPayload, options = {}) {
+  const { partial = false, fallbackQuestion = "", fallbackAnswer = "", fallbackOrder = 0 } = options;
+  const payload = itemPayload && typeof itemPayload === "object" ? itemPayload : {};
+  const questionKeys = ["question", "title", "heading"];
+  const answerKeys = ["answer", "content", "body", "description"];
+  const item = {};
+
+  if (!partial || hasAnyPayloadKey(payload, questionKeys)) {
+    const question = normalizeString(getFirstPayloadValue(payload, questionKeys)) || fallbackQuestion;
+
+    if (!question || question.length < 2 || question.length > 300) {
+      return { error: "FAQ question must be between 2 and 300 characters" };
+    }
+
+    item.question = question;
+  }
+
+  if (!partial || hasAnyPayloadKey(payload, answerKeys)) {
+    const answer = normalizeString(getFirstPayloadValue(payload, answerKeys)) || fallbackAnswer;
+
+    if (!answer || answer.length < 2 || answer.length > 5000) {
+      return { error: "FAQ answer must be between 2 and 5000 characters" };
+    }
+
+    item.answer = answer;
+  }
+
+  if (hasAnyPayloadKey(payload, ["isVisible", "visible"])) {
+    item.isVisible = normalizeBoolean(
+      getFirstPayloadValue(payload, ["isVisible", "visible"]),
+      true
+    );
+  } else if (!partial) {
+    item.isVisible = true;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "order")) {
+    const order = normalizeInteger(payload.order, fallbackOrder);
+    item.order = Math.max(1, order);
+  } else if (!partial) {
+    item.order = fallbackOrder;
+  }
+
+  return { value: item };
+}
+
+function normalizeFaqItems(itemsPayload) {
+  if (!Array.isArray(itemsPayload)) {
+    return { error: "FAQ items must be an array" };
+  }
+
+  if (itemsPayload.length > 50) {
+    return { error: "FAQ can contain up to 50 items" };
+  }
+
+  const items = [];
+
+  for (const [index, itemPayload] of itemsPayload.entries()) {
+    const itemResult = normalizeFaqItem(itemPayload, {
+      fallbackOrder: index + 1,
+    });
+
+    if (itemResult.error) {
+      return { error: `FAQ ${index + 1}: ${itemResult.error}` };
+    }
+
+    const itemId = normalizeString(itemPayload?._id || itemPayload?.id || itemPayload?.faqId);
+
+    if (itemId) {
+      if (!mongoose.isValidObjectId(itemId)) {
+        return { error: `FAQ ${index + 1}: Invalid FAQ id` };
+      }
+
+      itemResult.value._id = itemId;
+    }
+
+    items.push(itemResult.value);
+  }
+
+  return { value: items };
+}
+
 function buildDefaultLegalPageDocument(defaults) {
   return {
     slug: defaults.slug,
@@ -526,6 +642,21 @@ function buildDefaultLegalPageDocument(defaults) {
     isPublished: true,
     sections: defaults.sections.map((section, index) => ({
       ...section,
+      order: index + 1,
+      isVisible: true,
+    })),
+  };
+}
+
+function buildDefaultFaqPageDocument() {
+  return {
+    key: FAQ_PAGE_DEFAULTS.key,
+    category: FAQ_PAGE_DEFAULTS.category,
+    title: FAQ_PAGE_DEFAULTS.title,
+    subtitle: FAQ_PAGE_DEFAULTS.subtitle,
+    isPublished: true,
+    items: FAQ_PAGE_DEFAULTS.items.map((item, index) => ({
+      ...item,
       order: index + 1,
       isVisible: true,
     })),
@@ -559,6 +690,24 @@ async function findOrCreateLegalPage(rawSlug) {
   return { value: page };
 }
 
+async function findOrCreateFaqPage() {
+  let page = await FaqPage.findOne({ key: FAQ_PAGE_DEFAULTS.key });
+
+  if (!page) {
+    try {
+      page = await FaqPage.create(buildDefaultFaqPageDocument());
+    } catch (error) {
+      if (error?.code !== 11000) {
+        throw error;
+      }
+
+      page = await FaqPage.findOne({ key: FAQ_PAGE_DEFAULTS.key });
+    }
+  }
+
+  return { value: page };
+}
+
 function reindexLegalPageSections(page) {
   page.sections.sort((left, right) => {
     const leftOrder = Number.isFinite(left.order) && left.order > 0 ? left.order : 1;
@@ -568,6 +717,18 @@ function reindexLegalPageSections(page) {
 
   page.sections.forEach((section, index) => {
     section.order = index + 1;
+  });
+}
+
+function reindexFaqItems(page) {
+  page.items.sort((left, right) => {
+    const leftOrder = Number.isFinite(left.order) && left.order > 0 ? left.order : 1;
+    const rightOrder = Number.isFinite(right.order) && right.order > 0 ? right.order : 1;
+    return leftOrder - rightOrder;
+  });
+
+  page.items.forEach((item, index) => {
+    item.order = index + 1;
   });
 }
 
@@ -590,6 +751,27 @@ function getOrderedLegalPageSections(page, options = {}) {
       return leftOrder - rightOrder;
     })
     .map(({ section }) => section);
+}
+
+function getOrderedFaqItems(page, options = {}) {
+  const { visibleOnly = false } = options;
+
+  return (page.items || [])
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => (visibleOnly ? item.isVisible !== false : true))
+    .sort((left, right) => {
+      const leftOrder =
+        Number.isFinite(left.item.order) && left.item.order > 0
+          ? left.item.order
+          : left.index + 1;
+      const rightOrder =
+        Number.isFinite(right.item.order) && right.item.order > 0
+          ? right.item.order
+          : right.index + 1;
+
+      return leftOrder - rightOrder;
+    })
+    .map(({ item }) => item);
 }
 
 function mapLegalPageSection(section, index, pageSlug, options = {}) {
@@ -638,6 +820,51 @@ function mapLegalPageSection(section, index, pageSlug, options = {}) {
   return mappedSection;
 }
 
+function mapFaqItem(item, index, options = {}) {
+  const { includeActions = false } = options;
+  const faqNumber = index + 1;
+  const faqId = String(item._id);
+  const mappedItem = {
+    id: faqId,
+    faqId,
+    label: `FAQ ${faqNumber}`,
+    order: item.order || faqNumber,
+    question: item.question || "",
+    answer: item.answer || "",
+    isVisible: item.isVisible !== false,
+  };
+
+  if (includeActions) {
+    mappedItem.actions = {
+      preview: {
+        label: "Preview",
+        method: "GET",
+        apiUrl: "/api/settings/public/faqs",
+      },
+      edit: {
+        label: "Edit",
+        method: "PATCH",
+        apiUrl: `/api/settings/faqs/items/${faqId}`,
+      },
+      visibility: {
+        label: mappedItem.isVisible ? "Hide" : "Show",
+        method: "PATCH",
+        apiUrl: `/api/settings/faqs/items/${faqId}/visibility`,
+        payload: {
+          isVisible: !mappedItem.isVisible,
+        },
+      },
+      delete: {
+        label: "Delete",
+        method: "DELETE",
+        apiUrl: `/api/settings/faqs/items/${faqId}`,
+      },
+    };
+  }
+
+  return mappedItem;
+}
+
 function mapLegalPage(page, options = {}) {
   const { includeActions = false, visibleOnly = false } = options;
   const sections = getOrderedLegalPageSections(page, { visibleOnly });
@@ -653,6 +880,23 @@ function mapLegalPage(page, options = {}) {
     sections: sections.map((section, index) =>
       mapLegalPageSection(section, index, page.slug, { includeActions })
     ),
+  };
+}
+
+function mapFaqPage(page, options = {}) {
+  const { includeActions = false, visibleOnly = false } = options;
+  const items = getOrderedFaqItems(page, { visibleOnly });
+
+  return {
+    id: String(page._id),
+    key: page.key || "faq",
+    category: page.category || "",
+    title: page.title || "",
+    subtitle: page.subtitle || "",
+    isPublished: page.isPublished !== false,
+    updatedAt: page.updatedAt,
+    items: items.map((item, index) => mapFaqItem(item, index, { includeActions })),
+    faqs: items.map((item, index) => mapFaqItem(item, index, { includeActions })),
   };
 }
 
@@ -681,6 +925,37 @@ function buildLegalPageSettingsScreen(page, user) {
         apiUrl: `/api/settings/legal-pages/${page.slug}/sections`,
       },
       sections: pageData.sections,
+    },
+    page: pageData,
+  };
+}
+
+function buildFaqSettingsScreen(page, user) {
+  const pageData = mapFaqPage(page, { includeActions: true });
+
+  return {
+    breadcrumb: buildFaqSettingsBreadcrumb(),
+    title: "Setting",
+    description: FAQ_PAGE_DEFAULTS.screenDescription,
+    tabs: buildLegalSettingsTabs("faq"),
+    sidebarProfile: buildSettingsSidebarProfile(user),
+    saveAction: {
+      label: "Save Content",
+      method: "PATCH",
+      apiUrl: "/api/settings/faqs",
+    },
+    section: {
+      category: pageData.category,
+      title: pageData.title,
+      subtitle: pageData.subtitle,
+      icon: "help-circle",
+      addFaqAction: {
+        label: "Add FAQ",
+        method: "POST",
+        apiUrl: "/api/settings/faqs/items",
+      },
+      faqs: pageData.faqs,
+      items: pageData.items,
     },
     page: pageData,
   };
@@ -903,6 +1178,340 @@ async function listLegalPages(req, res, next) {
       data: {
         pages: pages.map((page) => mapLegalPage(page)),
         tabs: buildLegalSettingsTabs(""),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getPublicFaqPage(req, res, next) {
+  try {
+    const pageResult = await findOrCreateFaqPage();
+    const page = pageResult.value;
+
+    if (page.isPublished === false) {
+      return res.status(404).json({
+        success: false,
+        message: "FAQ page not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "FAQ page fetched successfully",
+      data: {
+        page: mapFaqPage(page, { visibleOnly: true }),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getFaqSettingsScreen(req, res, next) {
+  try {
+    const pageResult = await findOrCreateFaqPage();
+
+    return res.status(200).json({
+      success: true,
+      message: "FAQ settings screen fetched successfully",
+      data: {
+        screen: buildFaqSettingsScreen(pageResult.value, req.user),
+        page: mapFaqPage(pageResult.value, { includeActions: true }),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateFaqPageContent(req, res, next) {
+  try {
+    const pageResult = await findOrCreateFaqPage();
+    const page = pageResult.value;
+    const payload = req.body || {};
+
+    if (Object.prototype.hasOwnProperty.call(payload, "title")) {
+      const title = normalizeString(payload.title);
+
+      if (!title || title.length < 2 || title.length > 160) {
+        return res.status(400).json({
+          success: false,
+          message: "FAQ title must be between 2 and 160 characters",
+        });
+      }
+
+      page.title = title;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "subtitle")) {
+      const subtitle = normalizeString(payload.subtitle);
+
+      if (subtitle.length > 500) {
+        return res.status(400).json({
+          success: false,
+          message: "FAQ subtitle must be 500 characters or fewer",
+        });
+      }
+
+      page.subtitle = subtitle;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "category")) {
+      const category = normalizeString(payload.category).toUpperCase();
+
+      if (category.length > 80) {
+        return res.status(400).json({
+          success: false,
+          message: "FAQ category must be 80 characters or fewer",
+        });
+      }
+
+      page.category = category;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "isPublished")) {
+      page.isPublished = normalizeBoolean(payload.isPublished, page.isPublished !== false);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "items") || Object.prototype.hasOwnProperty.call(payload, "faqs")) {
+      const itemsResult = normalizeFaqItems(payload.items || payload.faqs);
+
+      if (itemsResult.error) {
+        return res.status(400).json({
+          success: false,
+          message: itemsResult.error,
+        });
+      }
+
+      page.items = itemsResult.value;
+    }
+
+    page.updatedBy = req.user.id;
+    reindexFaqItems(page);
+    await page.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "FAQ content updated successfully",
+      data: {
+        screen: buildFaqSettingsScreen(page, req.user),
+        page: mapFaqPage(page, { includeActions: true }),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function addFaqItem(req, res, next) {
+  try {
+    const pageResult = await findOrCreateFaqPage();
+    const page = pageResult.value;
+
+    if (page.items.length >= 50) {
+      return res.status(400).json({
+        success: false,
+        message: "FAQ can contain up to 50 items",
+      });
+    }
+
+    const itemResult = normalizeFaqItem(req.body || {}, {
+      fallbackQuestion: "New FAQ question",
+      fallbackAnswer: "Add FAQ answer.",
+      fallbackOrder: page.items.length + 1,
+    });
+
+    if (itemResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: itemResult.error,
+      });
+    }
+
+    page.items.push(itemResult.value);
+    const createdItemId = String(page.items[page.items.length - 1]._id);
+    page.updatedBy = req.user.id;
+    reindexFaqItems(page);
+    await page.save();
+
+    const orderedItems = getOrderedFaqItems(page);
+    const createdItemIndex = orderedItems.findIndex((item) => String(item._id) === createdItemId);
+    const createdItem = createdItemIndex >= 0 ? orderedItems[createdItemIndex] : null;
+
+    return res.status(201).json({
+      success: true,
+      message: "FAQ item created successfully",
+      data: {
+        item: createdItem ? mapFaqItem(createdItem, createdItemIndex, { includeActions: true }) : null,
+        faq: createdItem ? mapFaqItem(createdItem, createdItemIndex, { includeActions: true }) : null,
+        screen: buildFaqSettingsScreen(page, req.user),
+        page: mapFaqPage(page, { includeActions: true }),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateFaqItem(req, res, next) {
+  try {
+    const faqId = normalizeString(req.params.faqId);
+
+    if (!mongoose.isValidObjectId(faqId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid FAQ id",
+      });
+    }
+
+    const pageResult = await findOrCreateFaqPage();
+    const page = pageResult.value;
+    const item = page.items.id(faqId);
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: "FAQ item not found",
+      });
+    }
+
+    const itemResult = normalizeFaqItem(req.body || {}, { partial: true });
+
+    if (itemResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: itemResult.error,
+      });
+    }
+
+    const updates = itemResult.value;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one FAQ field is required",
+      });
+    }
+
+    Object.assign(item, updates);
+    page.updatedBy = req.user.id;
+    reindexFaqItems(page);
+    await page.save();
+
+    const updatedItems = getOrderedFaqItems(page);
+    const updatedItemIndex = updatedItems.findIndex((entry) => String(entry._id) === faqId);
+
+    return res.status(200).json({
+      success: true,
+      message: "FAQ item updated successfully",
+      data: {
+        item:
+          updatedItemIndex >= 0
+            ? mapFaqItem(updatedItems[updatedItemIndex], updatedItemIndex, { includeActions: true })
+            : null,
+        faq:
+          updatedItemIndex >= 0
+            ? mapFaqItem(updatedItems[updatedItemIndex], updatedItemIndex, { includeActions: true })
+            : null,
+        screen: buildFaqSettingsScreen(page, req.user),
+        page: mapFaqPage(page, { includeActions: true }),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateFaqItemVisibility(req, res, next) {
+  try {
+    const faqId = normalizeString(req.params.faqId);
+
+    if (!mongoose.isValidObjectId(faqId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid FAQ id",
+      });
+    }
+
+    const pageResult = await findOrCreateFaqPage();
+    const page = pageResult.value;
+    const item = page.items.id(faqId);
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: "FAQ item not found",
+      });
+    }
+
+    const hasVisibilityPayload = hasAnyPayloadKey(req.body || {}, ["isVisible", "visible"]);
+    item.isVisible = hasVisibilityPayload
+      ? normalizeBoolean(getFirstPayloadValue(req.body || {}, ["isVisible", "visible"]), item.isVisible !== false)
+      : item.isVisible === false;
+    page.updatedBy = req.user.id;
+    await page.save();
+
+    const updatedItems = getOrderedFaqItems(page);
+    const updatedItemIndex = updatedItems.findIndex((entry) => String(entry._id) === faqId);
+
+    return res.status(200).json({
+      success: true,
+      message: "FAQ item visibility updated successfully",
+      data: {
+        item:
+          updatedItemIndex >= 0
+            ? mapFaqItem(updatedItems[updatedItemIndex], updatedItemIndex, { includeActions: true })
+            : null,
+        faq:
+          updatedItemIndex >= 0
+            ? mapFaqItem(updatedItems[updatedItemIndex], updatedItemIndex, { includeActions: true })
+            : null,
+        screen: buildFaqSettingsScreen(page, req.user),
+        page: mapFaqPage(page, { includeActions: true }),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteFaqItem(req, res, next) {
+  try {
+    const faqId = normalizeString(req.params.faqId);
+
+    if (!mongoose.isValidObjectId(faqId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid FAQ id",
+      });
+    }
+
+    const pageResult = await findOrCreateFaqPage();
+    const page = pageResult.value;
+    const item = page.items.id(faqId);
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: "FAQ item not found",
+      });
+    }
+
+    page.items.pull(item._id);
+    page.updatedBy = req.user.id;
+    reindexFaqItems(page);
+    await page.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "FAQ item deleted successfully",
+      data: {
+        faqId,
+        itemId: faqId,
+        screen: buildFaqSettingsScreen(page, req.user),
+        page: mapFaqPage(page, { includeActions: true }),
       },
     });
   } catch (error) {
@@ -1318,6 +1927,13 @@ module.exports = {
   getSecuritySettingsScreen,
   updatePasswordSettings,
   listLegalPages,
+  getPublicFaqPage,
+  getFaqSettingsScreen,
+  updateFaqPageContent,
+  addFaqItem,
+  updateFaqItem,
+  updateFaqItemVisibility,
+  deleteFaqItem,
   getPublicLegalPage,
   getLegalPageSettingsScreen,
   updateLegalPageContent,
