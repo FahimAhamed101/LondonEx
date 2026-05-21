@@ -47,6 +47,7 @@ const router = express.Router();
 const requireAdmin = [requireAuth, requireRole("admin")];
 
 router.get("/courses/options", requireAdmin, listCourseSourceOptions);
+router.get("/courses", listAdminCourses);
 router.get("/courses/:id", getAdminCourseById);
 router.patch("/courses/:id", uploadCourseImage, updateCourse);
 
@@ -59,7 +60,6 @@ router.get("/candidates", listCandidates);
 router.post("/candidates/stuck/reminders", sendStuckCandidateReminders);
 router.post("/candidates/:id/reminder", sendCandidateReminder);
 router.get("/candidates/:id", getCandidateById);
-router.get("/courses", listAdminCourses);
 router.post("/courses", uploadCourseImage, createCourse);
 router.delete("/courses/:id", deleteCourse);
 router.get("/team", listAdminTeamMembers);
