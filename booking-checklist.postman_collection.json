@@ -16,7 +16,14 @@
     { "key": "signatureFilePath", "value": "" },
     { "key": "trainingProviderEmail", "value": "provider@example.com" },
     { "key": "trainingProviderName", "value": "Training Provider" },
-    { "key": "candidateId", "value": "YOUR_CANDIDATE_BOOKING_ID" }
+    { "key": "candidateId", "value": "YOUR_CANDIDATE_BOOKING_ID" },
+    { "key": "legalPageSlug", "value": "terms-and-conditions" },
+    { "key": "legalPageSectionId", "value": "YOUR_LEGAL_PAGE_SECTION_ID" },
+    { "key": "courseAssessmentVariant", "value": "am2" },
+    { "key": "editableCoursePrice", "value": "885" },
+    { "key": "am2CoursePrice", "value": "885" },
+    { "key": "am2eCoursePrice", "value": "965" },
+    { "key": "am2eV1CoursePrice", "value": "1235" }
   ],
   "item": [
     {
@@ -285,6 +292,643 @@
                   "if (pm.response.code === 502) {",
                   "  pm.test('Bulk SMTP failures include reasons', () => pm.expect(json.data && json.data.failed && json.data.failed.length).to.be.above(0));",
                   "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Legal Page Settings APIs",
+      "item": [
+        {
+          "name": "Public Legal Page By Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/public/legal-pages/{{legalPageSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "public", "legal-pages", "{{legalPageSlug}}"]
+            },
+            "description": "Public endpoint. No token required. Valid slugs and aliases include terms-and-conditions, terms, terms-conditions, privacy-policy, and privacy. Returns only published pages and visible sections in data.page.sections."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Public legal page fetched', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Page payload returned', () => pm.expect(json.data && json.data.page && json.data.page.slug).to.be.a('string'));",
+                  "if (json.data && json.data.page && json.data.page.slug) {",
+                  "  pm.collectionVariables.set('legalPageSlug', json.data.page.slug);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Admin Legal Pages",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/legal-pages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "legal-pages"]
+            },
+            "description": "Admin endpoint. Requires Bearer {{adminToken}}. Creates default terms and privacy pages if missing, then returns data.pages and data.tabs."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Admin legal pages listed', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Pages array returned', () => pm.expect(json.data && json.data.pages).to.be.an('array'));",
+                  "if (json.data && Array.isArray(json.data.pages) && json.data.pages[0]) {",
+                  "  pm.collectionVariables.set('legalPageSlug', json.data.pages[0].slug);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Admin Legal Page Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/legal-pages/{{legalPageSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "legal-pages", "{{legalPageSlug}}"]
+            },
+            "description": "Admin endpoint. Returns the dashboard-ready legal page settings screen in data.screen and the editable page in data.page. Use a section id from data.page.sections[*].sectionId for section update, visibility, and delete requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Admin legal page fetched', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const page = json.data && json.data.page;",
+                  "if (page && page.slug) { pm.collectionVariables.set('legalPageSlug', page.slug); }",
+                  "if (page && Array.isArray(page.sections) && page.sections[0]) {",
+                  "  pm.collectionVariables.set('legalPageSectionId', page.sections[0].sectionId || page.sections[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Legal Page Content",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Terms & Conditions\",\n  \"subtitle\": \"Edit the title, introduction, and section copy shown on the public terms page.\",\n  \"category\": \"LEGAL\",\n  \"isPublished\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/legal-pages/{{legalPageSlug}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "legal-pages", "{{legalPageSlug}}"]
+            },
+            "description": "Admin endpoint. Updates page-level fields. Optional fields: title, subtitle, category, isPublished. You can also send sections as an array, but that replaces the page sections list, so use the section-specific APIs for safer edits."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Legal page content updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Updated page returned', () => pm.expect(json.data && json.data.page && json.data.page.slug).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Legal Page Section",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Cancellation Policy\",\n  \"introduction\": \"Course places are subject to availability. Contact the team if you need to change a confirmed booking.\",\n  \"order\": 6,\n  \"isVisible\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/legal-pages/{{legalPageSlug}}/sections",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "legal-pages", "{{legalPageSlug}}", "sections"]
+            },
+            "description": "Admin endpoint. Adds one section. Accepted aliases: title or heading; introduction, content, body, or description; isVisible or visible. A page can contain up to 20 sections."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Legal page section created', () => pm.expect(pm.response.code).to.equal(201));",
+                  "const section = json.data && json.data.section;",
+                  "if (section) {",
+                  "  pm.collectionVariables.set('legalPageSectionId', section.sectionId || section.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Legal Page Section",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Cancellation Policy\",\n  \"introduction\": \"Updated section content for the selected legal page section.\",\n  \"order\": 3,\n  \"isVisible\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/legal-pages/{{legalPageSlug}}/sections/{{legalPageSectionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "legal-pages", "{{legalPageSlug}}", "sections", "{{legalPageSectionId}}"]
+            },
+            "description": "Admin endpoint. Partially updates a section. Send at least one editable field. Valid section ids are returned by Get Admin Legal Page Settings or Add Legal Page Section."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Legal page section updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Updated section returned', () => pm.expect(json.data && json.data.section).to.be.an('object'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Legal Page Section Visibility",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isVisible\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/legal-pages/{{legalPageSlug}}/sections/{{legalPageSectionId}}/visibility",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "legal-pages", "{{legalPageSlug}}", "sections", "{{legalPageSectionId}}", "visibility"]
+            },
+            "description": "Admin endpoint. Sets visibility when isVisible or visible is supplied. If the body is empty, the API toggles the current visibility value."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Legal page section visibility updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Visibility returned', () => pm.expect(json.data && json.data.section && json.data.section.isVisible).to.be.a('boolean'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Legal Page Section",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/settings/legal-pages/{{legalPageSlug}}/sections/{{legalPageSectionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "settings", "legal-pages", "{{legalPageSlug}}", "sections", "{{legalPageSectionId}}"]
+            },
+            "description": "Admin endpoint. Deletes one section and reindexes the remaining section order. Run Add Legal Page Section first if you want a disposable section for delete testing."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Legal page section deleted', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Deleted section id returned', () => pm.expect(json.data && json.data.sectionId).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Course VAT Support",
+      "item": [
+        {
+          "name": "Get Admin Course With VAT Pricing",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            },
+            "description": "Admin endpoint. Returns data.course with pricing fields such as vatEnabled, vatIncluded, vatAmount, totalAmount, vatRate, vatPercentage, baseDisplayPrice, totalDisplayPrice, and displayPrice. VAT on example displayPrice: \u00a31,000 + VAT (\u00a31,200). VAT off example displayPrice: \u00a31,000."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Admin course fetched', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const pricing = json.data && json.data.course && json.data.course.pricing;",
+                  "pm.test('VAT pricing fields returned', () => {",
+                  "  pm.expect(pricing).to.be.an('object');",
+                  "  pm.expect(pricing).to.have.property('displayPrice');",
+                  "  pm.expect(pricing).to.have.property('vatEnabled');",
+                  "  pm.expect(pricing).to.have.property('vatAmount');",
+                  "  pm.expect(pricing).to.have.property('totalAmount');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toggle Course VAT On",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vatEnabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            },
+            "description": "Admin endpoint. Enables VAT for a course. Supported aliases in create/update payloads: vatEnabled, vatIncluded, vatEligible, hasVat, chargeVat, and isVatEnabled. VAT-enabled bookings store the VAT breakdown and charge the gross total."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Course VAT updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const pricing = json.data && json.data.course && json.data.course.pricing;",
+                  "pm.test('VAT is enabled in response pricing', () => pm.expect(pricing && pricing.vatEnabled).to.equal(true));",
+                  "pm.test('Gross total includes VAT', () => pm.expect(Number(pricing.totalAmount)).to.be.at.least(Number(pricing.amount || 0)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Toggle Course VAT Off",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vatEnabled\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            },
+            "description": "Admin endpoint. Disables VAT for a course. The pricing display should return the base price only and VAT amounts should be zero."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Course VAT updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const pricing = json.data && json.data.course && json.data.course.pricing;",
+                  "pm.test('VAT is disabled in response pricing', () => pm.expect(pricing && pricing.vatEnabled).to.equal(false));",
+                  "pm.test('VAT amount is zero', () => pm.expect(Number(pricing.vatAmount)).to.equal(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Course Variation Pricing",
+      "item": [
+        {
+          "name": "List Admin Courses With Variation Prices",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Admin endpoint. Returns courses with assessmentVariant, assessmentVariantLabel, assessmentVariantDefaultPrice, and pricing.amount. Supported variations are am2 (AM2, default 885), am2e (AM2E, default 965), and am2e-v1 (AM2E V1, default 1235). The saved course price remains editable by admin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Admin courses listed', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Courses array returned', () => pm.expect(json.data && json.data.courses).to.be.an('array'));",
+                  "const course = json.data && json.data.courses && json.data.courses[0];",
+                  "if (course) {",
+                  "  pm.collectionVariables.set('courseId', course.id);",
+                  "  if (course.assessmentVariant) pm.collectionVariables.set('courseAssessmentVariant', course.assessmentVariant);",
+                  "  if (course.pricing && course.pricing.amount !== undefined) pm.collectionVariables.set('editableCoursePrice', String(course.pricing.amount));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Admin Course Variation Price",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            },
+            "description": "Admin endpoint. Returns one course with its saved editable price in data.course.pricing.amount, variation key in data.course.assessmentVariant, label in data.course.assessmentVariantLabel, and default price in data.course.assessmentVariantDefaultPrice."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Admin course fetched', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const course = json.data && json.data.course;",
+                  "pm.test('Variation pricing metadata returned', () => {",
+                  "  pm.expect(course).to.be.an('object');",
+                  "  pm.expect(course).to.have.property('assessmentVariant');",
+                  "  pm.expect(course).to.have.property('assessmentVariantLabel');",
+                  "  pm.expect(course).to.have.property('assessmentVariantDefaultPrice');",
+                  "  pm.expect(course.pricing).to.have.property('amount');",
+                  "});",
+                  "if (course) {",
+                  "  pm.collectionVariables.set('courseAssessmentVariant', course.assessmentVariant);",
+                  "  pm.collectionVariables.set('editableCoursePrice', String(course.pricing.amount));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create AM2 Course - 885",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"AM2 Assessment Course\",\n  \"shortDescription\": \"AM2 assessment course with editable admin pricing.\",\n  \"description\": \"AM2 assessment course with the default variation price. Admin can edit this price later from the dashboard or API.\",\n  \"assessmentVariant\": \"am2\",\n  \"duration\": \"5 Days\",\n  \"location\": \"London Training Centre\",\n  \"price\": {{am2CoursePrice}},\n  \"totalSeats\": 16,\n  \"sessionDate\": \"2026-06-15\",\n  \"timeSlot\": \"09:00 AM - 04:00 PM\",\n  \"vatEnabled\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses"]
+            },
+            "description": "Creates an AM2 course using the required default price 885. The API still stores price as an editable course field, so admins can change it in future years."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('AM2 course created', () => pm.expect(pm.response.code).to.equal(201));",
+                  "const course = json.data && json.data.course;",
+                  "pm.test('AM2 default price saved', () => {",
+                  "  pm.expect(course.assessmentVariant).to.equal('am2');",
+                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('am2CoursePrice')));",
+                  "});",
+                  "if (course && course.id) { pm.collectionVariables.set('courseId', course.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create AM2E Course - 965",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"AM2E Assessment Course\",\n  \"shortDescription\": \"AM2E assessment course with editable admin pricing.\",\n  \"description\": \"AM2E assessment course with the default variation price. Admin can edit this price later from the dashboard or API.\",\n  \"assessmentVariant\": \"am2e\",\n  \"duration\": \"5 Days\",\n  \"location\": \"London Training Centre\",\n  \"price\": {{am2eCoursePrice}},\n  \"totalSeats\": 16,\n  \"sessionDate\": \"2026-06-16\",\n  \"timeSlot\": \"09:00 AM - 04:00 PM\",\n  \"vatEnabled\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses"]
+            },
+            "description": "Creates an AM2E course using the required default price 965. The saved price is editable by admin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('AM2E course created', () => pm.expect(pm.response.code).to.equal(201));",
+                  "const course = json.data && json.data.course;",
+                  "pm.test('AM2E default price saved', () => {",
+                  "  pm.expect(course.assessmentVariant).to.equal('am2e');",
+                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('am2eCoursePrice')));",
+                  "});",
+                  "if (course && course.id) { pm.collectionVariables.set('courseId', course.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create AM2E V1 Course - 1235",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"AM2E V1 Assessment Course\",\n  \"shortDescription\": \"AM2E V1 assessment course with editable admin pricing.\",\n  \"description\": \"AM2E V1 assessment course with the default variation price. Admin can edit this price later from the dashboard or API.\",\n  \"assessmentVariant\": \"am2e-v1\",\n  \"duration\": \"5 Days\",\n  \"location\": \"London Training Centre\",\n  \"price\": {{am2eV1CoursePrice}},\n  \"totalSeats\": 16,\n  \"sessionDate\": \"2026-06-17\",\n  \"timeSlot\": \"09:00 AM - 04:00 PM\",\n  \"vatEnabled\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses"]
+            },
+            "description": "Creates an AM2E V1 course using the required default price 1235. The saved price is editable by admin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('AM2E V1 course created', () => pm.expect(pm.response.code).to.equal(201));",
+                  "const course = json.data && json.data.course;",
+                  "pm.test('AM2E V1 default price saved', () => {",
+                  "  pm.expect(course.assessmentVariant).to.equal('am2e-v1');",
+                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('am2eV1CoursePrice')));",
+                  "});",
+                  "if (course && course.id) { pm.collectionVariables.set('courseId', course.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Course Variation And Editable Price",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assessmentVariant\": \"{{courseAssessmentVariant}}\",\n  \"price\": {{editableCoursePrice}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            },
+            "description": "Admin endpoint. Updates an existing course's variation and saved editable price. Set courseAssessmentVariant to am2, am2e, or am2e-v1. Set editableCoursePrice to the current annual price you want to charge."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Course variation price updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const course = json.data && json.data.course;",
+                  "pm.test('Editable variation price saved', () => {",
+                  "  pm.expect(course.assessmentVariant).to.equal(pm.collectionVariables.get('courseAssessmentVariant'));",
+                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('editableCoursePrice')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Course Price Only",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": {{editableCoursePrice}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}"]
+            },
+            "description": "Admin endpoint for yearly price changes. Keeps the existing variation and updates only the saved course price used by future bookings."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Course price updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const amount = json.data && json.data.course && json.data.course.pricing && json.data.course.pricing.amount;",
+                  "pm.test('Editable price saved', () => pm.expect(Number(amount)).to.equal(Number(pm.collectionVariables.get('editableCoursePrice'))));"
                 ]
               }
             }

@@ -5,6 +5,20 @@ const Booking = require("../models/Booking");
 
 const COURSE_STATUSES = ["available", "upcoming", "archived"];
 const ASSESSMENT_VARIANTS = ["am2", "am2e", "am2e-v1"];
+const ASSESSMENT_VARIANT_CONFIG = {
+  am2: {
+    label: "AM2",
+    defaultPrice: 885,
+  },
+  am2e: {
+    label: "AM2E",
+    defaultPrice: 965,
+  },
+  "am2e-v1": {
+    label: "AM2E V1",
+    defaultPrice: 1235,
+  },
+};
 const VAT_RATE = 0.2;
 const POPULAR_COURSE_SEARCHES = [
   { label: "Gas Engineer", query: "Gas Engineer" },
@@ -214,8 +228,28 @@ function hasAnyPayloadKey(payload, keys) {
 }
 
 function normalizeAssessmentVariant(value) {
-  const normalizedValue = normalizeString(value).toLowerCase();
-  return ASSESSMENT_VARIANTS.includes(normalizedValue) ? normalizedValue : "";
+  const normalizedValue = normalizeString(value)
+    .toLowerCase()
+    .replace(/[_\s.]+/g, "-");
+  const compactValue = normalizedValue.replace(/-/g, "");
+  const aliases = {
+    am2: "am2",
+    am2e: "am2e",
+    am2ev1: "am2e-v1",
+    "am2e-v1": "am2e-v1",
+    "am2e-v1-1": "am2e-v1",
+  };
+
+  const variant = aliases[normalizedValue] || aliases[compactValue] || "";
+  return ASSESSMENT_VARIANTS.includes(variant) ? variant : "";
+}
+
+function getAssessmentVariantConfig(value) {
+  const variant = normalizeAssessmentVariant(value) || "am2";
+  return {
+    variant,
+    ...ASSESSMENT_VARIANT_CONFIG[variant],
+  };
 }
 
 function parseDateValue(value, label) {
@@ -525,8 +559,16 @@ function buildCoursePayload(payload, options = {}) {
     courseData.isPublished = normalizeBoolean(payload.isPublished, true);
   }
 
-  if (Object.prototype.hasOwnProperty.call(payload, "price") || !partial) {
-    const price = normalizeNumber(payload.price, 0);
+  if (
+    Object.prototype.hasOwnProperty.call(payload, "price") ||
+    hasAnyPayloadKey(payload, assessmentVariantKeys) ||
+    !partial
+  ) {
+    const variantConfig = getAssessmentVariantConfig(courseData.assessmentVariant || assessmentVariant || "am2");
+    const price = Object.prototype.hasOwnProperty.call(payload, "price")
+      ? normalizeNumber(payload.price, 0)
+      : variantConfig.defaultPrice;
+
     if (price < 0) {
       return { error: "Price cannot be negative" };
     }
@@ -707,6 +749,7 @@ async function searchCourses(req, res, next) {
 function mapCourseSummary(course) {
   const primaryImage = course.thumbnailUrl || course.galleryImages?.[0] || "";
   const pricing = buildCoursePricing(course);
+  const variantConfig = getAssessmentVariantConfig(course.assessmentVariant);
 
   return {
     id: course._id,
@@ -721,7 +764,9 @@ function mapCourseSummary(course) {
     currency: course.currency,
     vatEnabled: pricing.vatEnabled,
     vatIncluded: pricing.vatEnabled,
-    assessmentVariant: normalizeAssessmentVariant(course.assessmentVariant) || "am2",
+    assessmentVariant: variantConfig.variant,
+    assessmentVariantLabel: variantConfig.label,
+    assessmentVariantDefaultPrice: variantConfig.defaultPrice,
     thumbnailUrl: primaryImage,
     tags: course.tags,
     isPublished: course.isPublished,
@@ -1570,6 +1615,7 @@ function buildPrivacyRegistrationForm(course) {
 
 function mapAdminCourseDetail(course, bookedSeats = 0) {
   const detail = mapCourseDetail(course);
+  const variantConfig = getAssessmentVariantConfig(course.assessmentVariant);
 
   return {
     ...detail,
@@ -1583,7 +1629,9 @@ function mapAdminCourseDetail(course, bookedSeats = 0) {
       sessionDate: formatDateOnly(course.sessionDate),
       timeSlot: course.timeSlot || "",
       totalSeats: Number.isFinite(course.totalSeats) ? course.totalSeats : 0,
-      assessmentVariant: normalizeAssessmentVariant(course.assessmentVariant) || "am2",
+      assessmentVariant: variantConfig.variant,
+      assessmentVariantLabel: variantConfig.label,
+      assessmentVariantDefaultPrice: variantConfig.defaultPrice,
     },
   };
 }
@@ -1704,18 +1752,27 @@ async function listCourseSourceOptions(req, res, next) {
     const courses = await Course.find(filter)
       .sort({ title: 1 })
       .limit(100)
-      .select("title slug status");
+      .select("title slug status assessmentVariant price currency");
 
     return res.status(200).json({
       success: true,
       message: "Course source options fetched successfully",
       data: {
-        options: courses.map((course) => ({
-          id: course._id,
-          title: course.title,
-          slug: course.slug,
-          status: course.status,
-        })),
+        options: courses.map((course) => {
+          const variantConfig = getAssessmentVariantConfig(course.assessmentVariant);
+
+          return {
+            id: course._id,
+            title: course.title,
+            slug: course.slug,
+            status: course.status,
+            assessmentVariant: variantConfig.variant,
+            assessmentVariantLabel: variantConfig.label,
+            assessmentVariantDefaultPrice: variantConfig.defaultPrice,
+            price: course.price,
+            currency: course.currency || "GBP",
+          };
+        }),
       },
     });
   } catch (error) {

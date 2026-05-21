@@ -295,6 +295,9 @@ export type AdminCourse = {
   currency: string;
   vatEnabled?: boolean;
   vatIncluded?: boolean;
+  assessmentVariant?: string;
+  assessmentVariantLabel?: string;
+  assessmentVariantDefaultPrice?: number;
   thumbnailUrl: string;
   tags: string[];
   isPublished: boolean;
@@ -352,6 +355,9 @@ export type AdminCourse = {
     sessionDate: string;
     timeSlot: string;
     totalSeats: number;
+    assessmentVariant?: string;
+    assessmentVariantLabel?: string;
+    assessmentVariantDefaultPrice?: number;
   };
 };
 
@@ -377,6 +383,7 @@ export type CreateAdminCourseRequest = {
   title: string;
   shortDescription: string;
   description: string;
+  assessmentVariant: string;
   duration: string;
   location: string;
   price: number;
@@ -394,6 +401,11 @@ export type CourseSourceOption = {
   title: string;
   slug: string;
   status: string;
+  assessmentVariant?: string;
+  assessmentVariantLabel?: string;
+  assessmentVariantDefaultPrice?: number;
+  price?: number;
+  currency?: string;
 };
 
 export type CourseSourceOptionsResponse = {

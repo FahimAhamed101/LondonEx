@@ -23,6 +23,7 @@ import type { AdminCourse } from "@/types/dashboard";
 type CourseFormState = {
   courseName: string;
   description: string;
+  assessmentVariant: string;
   from: string;
   date: string;
   time: string;
@@ -33,20 +34,37 @@ type CourseFormState = {
   vatEnabled: boolean;
 };
 
-type CourseTextField = Exclude<keyof CourseFormState, "vatEnabled">;
+type CourseTextField = Exclude<
+  keyof CourseFormState,
+  "assessmentVariant" | "vatEnabled"
+>;
 
 const initialFormState: CourseFormState = {
   courseName: "",
   description: "",
+  assessmentVariant: "am2",
   from: "",
   date: "",
   time: "",
   duration: "",
   location: "",
   totalSeats: "",
-  price: "",
+  price: "885",
   vatEnabled: false,
 };
+
+const assessmentVariantOptions = [
+  { id: "am2", label: "AM2", defaultPrice: 885 },
+  { id: "am2e", label: "AM2E", defaultPrice: 965 },
+  { id: "am2e-v1", label: "AM2E V1", defaultPrice: 1235 },
+];
+
+function getAssessmentVariantOption(value?: string) {
+  return (
+    assessmentVariantOptions.find((option) => option.id === value) ??
+    assessmentVariantOptions[0]
+  );
+}
 
 function getCourseStatusLabel(status: string) {
   return status
@@ -114,10 +132,15 @@ function toTimeInputValue(value: string) {
 }
 
 function formatCourseToForm(course: AdminCourse, sourceFallback = ""): CourseFormState {
+  const variantOption = getAssessmentVariantOption(
+    course.assessmentVariant || course.adminMeta?.assessmentVariant,
+  );
+
   return {
     courseName: course.title,
     description:
       course.description || course.shortDescription || course.overview || "",
+    assessmentVariant: variantOption.id,
     from: course.source.name || sourceFallback,
     date: course.adminMeta?.sessionDate || course.schedule.date || "",
     time: course.adminMeta?.timeSlot || toTimeInputValue(course.schedule.time),
@@ -126,7 +149,7 @@ function formatCourseToForm(course: AdminCourse, sourceFallback = ""): CourseFor
     totalSeats: String(
       course.adminMeta?.totalSeats ?? course.capacity.totalSeats ?? "",
     ),
-    price: String(course.pricing.amount ?? course.price ?? ""),
+    price: String(course.pricing.amount ?? course.price ?? variantOption.defaultPrice),
     vatEnabled: Boolean(course.pricing.vatEnabled ?? course.pricing.vatIncluded),
   };
 }
@@ -235,6 +258,16 @@ export function CoursesManagementView() {
     }));
   };
 
+  const updateAssessmentVariant = (value: string) => {
+    const variantOption = getAssessmentVariantOption(value);
+
+    setForm((current) => ({
+      ...current,
+      assessmentVariant: variantOption.id,
+      price: String(variantOption.defaultPrice),
+    }));
+  };
+
   const toggleVatEnabled = () => {
     setForm((current) => ({
       ...current,
@@ -248,6 +281,7 @@ export function CoursesManagementView() {
     if (
       !form.courseName.trim() ||
       !form.description.trim() ||
+      !form.assessmentVariant ||
       !form.duration.trim() ||
       !form.location.trim() ||
       !form.totalSeats.trim() ||
@@ -274,6 +308,7 @@ export function CoursesManagementView() {
       title: form.courseName.trim(),
       shortDescription: form.description.trim(),
       description: form.description.trim(),
+      assessmentVariant: form.assessmentVariant,
       duration: form.duration.trim(),
       location: form.location.trim(),
       price: parsedPrice,
@@ -389,6 +424,11 @@ export function CoursesManagementView() {
                           </p>
                           <p className="mt-1 text-[13px] font-medium text-[#7b879f]">
                             {course.pricing.displayPrice}
+                          </p>
+                          <p className="mt-1 text-[12px] font-semibold text-[#3345a5]">
+                            {course.assessmentVariantLabel ||
+                              getAssessmentVariantOption(course.assessmentVariant)
+                                .label}
                           </p>
                           <p className="mt-1 text-[12px] text-[#8d99b5]">
                             {getCourseStatusLabel(course.status)}
@@ -519,23 +559,45 @@ export function CoursesManagementView() {
                   />
                 </div>
 
-                <div>
-                  <label className="text-[12px] font-medium text-[#5e6ea9]">
-                    From
-                  </label>
-                  <select
-                    value={form.from}
-                    disabled={isReadOnlyView}
-                    onChange={(event) => updateField("from", event.target.value)}
-                    className="mt-2 h-11 w-full rounded-[10px] border border-[#e2ebf8] bg-[#f4f9ff] px-4 text-[13px] text-[#4453a3] outline-none disabled:cursor-default"
-                  >
-                    <option value="">No source course</option>
-                    {sourceOptions.map((option) => (
-                      <option key={option.id} value={option.title}>
-                        {option.title}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-[12px] font-medium text-[#5e6ea9]">
+                      Course Variation *
+                    </label>
+                    <select
+                      value={form.assessmentVariant}
+                      disabled={isReadOnlyView}
+                      onChange={(event) =>
+                        updateAssessmentVariant(event.target.value)
+                      }
+                      className="mt-2 h-11 w-full rounded-[10px] border border-[#e2ebf8] bg-[#f4f9ff] px-4 text-[13px] text-[#4453a3] outline-none disabled:cursor-default"
+                    >
+                      {assessmentVariantOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[12px] font-medium text-[#5e6ea9]">
+                      From
+                    </label>
+                    <select
+                      value={form.from}
+                      disabled={isReadOnlyView}
+                      onChange={(event) => updateField("from", event.target.value)}
+                      className="mt-2 h-11 w-full rounded-[10px] border border-[#e2ebf8] bg-[#f4f9ff] px-4 text-[13px] text-[#4453a3] outline-none disabled:cursor-default"
+                    >
+                      <option value="">No source course</option>
+                      {sourceOptions.map((option) => (
+                        <option key={option.id} value={option.title}>
+                          {option.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -612,10 +674,11 @@ export function CoursesManagementView() {
                   </div>
                   <div>
                     <label className="text-[12px] font-medium text-[#5e6ea9]">
-                      Price (£) *
+                      Price (GBP) *
                     </label>
                     <input
                       value={form.price}
+                      inputMode="decimal"
                       readOnly={isReadOnlyView}
                       onChange={(event) =>
                         updateField("price", event.target.value)
