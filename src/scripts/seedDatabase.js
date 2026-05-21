@@ -193,7 +193,12 @@ async function seedDatabase() {
       entryRequirements: "Basic electrical installation experience and prior site exposure.",
       audience: "Electrical trainees preparing for AM2 final assessment.",
       duration: "5 Days",
-      price: 799,
+      price: 885,
+      assessmentVariantPricing: {
+        am2: 885,
+        am2e: 965,
+        am2eV1: 1235,
+      },
       totalSeats: 16,
       currency: "GBP",
       vatIncluded: true,
@@ -423,7 +428,7 @@ async function seedDatabase() {
       status: "pending_payment",
       payment: {
         status: "pending",
-        amount: 799,
+        amount: 885,
         currency: "GBP",
         agreedToTerms: false,
         method: "card",
@@ -623,7 +628,7 @@ async function seedDatabase() {
       status: "confirmed",
       payment: {
         status: "paid",
-        amount: 799,
+        amount: 885,
         currency: "GBP",
         agreedToTerms: true,
         method: "card",

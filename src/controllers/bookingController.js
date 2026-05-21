@@ -4,11 +4,16 @@ const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
 const Course = require("../models/Course");
 const {
+  buildAssessmentVariantPricing,
   buildCandidateRegistrationForm,
   buildAssessmentRegistrationForm,
+  buildCoursePricing,
   buildEmployerRegistrationForm,
   buildTrainingRegistrationForm,
   buildPrivacyRegistrationForm,
+  isAssessmentVariantPricingCourse,
+  normalizeAssessmentVariant,
+  resolveAssessmentVariantPriceForCourse,
 } = require("./courseController");
 const { getStripePublishableKey, isStripeConfigured } = require("../utils/stripe");
 const {
@@ -72,7 +77,7 @@ function normalizeNumber(value, fallbackValue = 0) {
 }
 
 function normalizeChecklistVariant(value) {
-  const normalizedValue = normalizeString(value).toLowerCase();
+  const normalizedValue = normalizeAssessmentVariant(value);
   return CHECKLIST_VARIANTS.includes(normalizedValue) ? normalizedValue : "";
 }
 
@@ -956,7 +961,7 @@ async function findChecklistCourseById(courseId) {
   }
 
   const course = await Course.findById(courseId).select(
-    "_id title slug qualification assessmentVariant shortDescription location schedule duration price currency thumbnailUrl galleryImages"
+    "_id title slug qualification assessmentVariant assessmentVariantPricing shortDescription location schedule duration price currency vatEnabled thumbnailUrl galleryImages"
   );
 
   if (!course) {
@@ -1146,15 +1151,42 @@ function resolveChecklistVariantForCourse(course, query = {}, options = {}) {
   };
 }
 
-function buildAvailableChecklistVariants(courseId) {
+function isCourseDocument(course) {
+  return course?.constructor?.modelName === "Course";
+}
+
+function buildCoursePricingForFlow(course, variant) {
+  if (
+    isAssessmentVariantPricingCourse(course) &&
+    !course?.assessmentVariantPricing &&
+    !isCourseDocument(course)
+  ) {
+    return buildPricingDisplay({
+      amount: course?.price || 0,
+      currency: course?.currency || "GBP",
+      vatEnabled: Boolean(course?.vatEnabled),
+    });
+  }
+
+  return buildCoursePricing(course, { assessmentVariant: variant });
+}
+
+function buildAvailableChecklistVariants(course) {
+  const courseId = String(course?._id || course || "");
+
   return CHECKLIST_VARIANTS.map((variant) => {
     const metadata = getChecklistVariantMetadata(variant);
+    const pricing = buildCoursePricingForFlow(course, variant);
 
     return {
       variant,
       templateId: metadata.templateId,
       title: metadata.title,
       description: metadata.description,
+      price: pricing.amount,
+      currency: pricing.currency,
+      displayPrice: pricing.baseDisplayPrice,
+      pricing,
       apiUrl: buildChecklistVariantApiUrl(variant, courseId),
     };
   });
@@ -1163,6 +1195,7 @@ function buildAvailableChecklistVariants(courseId) {
 function buildChecklistVariantSummary(course, variantResult, query = {}) {
   const metadata = getChecklistVariantMetadata(variantResult.variant);
   const courseId = String(course._id);
+  const pricing = buildCoursePricingForFlow(course, variantResult.variant);
 
   return {
     course: {
@@ -1170,7 +1203,15 @@ function buildChecklistVariantSummary(course, variantResult, query = {}) {
       title: course.title || "",
       slug: course.slug || "",
       qualification: course.qualification || "",
-      assessmentVariant: normalizeChecklistVariant(course.assessmentVariant) || variantResult.courseVariant || "am2",
+      assessmentVariant: variantResult.variant,
+      selectedAssessmentVariant: variantResult.variant,
+      configuredAssessmentVariant:
+        normalizeChecklistVariant(course.assessmentVariant) || variantResult.courseVariant || "am2",
+      price: pricing.amount,
+      currency: pricing.currency,
+      displayPrice: pricing.baseDisplayPrice,
+      pricing,
+      assessmentVariantPricing: isCourseDocument(course) ? buildAssessmentVariantPricing(course) : null,
     },
     checklistVariant: variantResult.variant,
     assessmentVariant: variantResult.variant,
@@ -1197,7 +1238,7 @@ function buildChecklistVariantSummary(course, variantResult, query = {}) {
       title: metadata.title,
       flowUrl: buildUnifiedChecklistFlowApiUrl(courseId, query, variantResult.variant),
     },
-    availableVariants: buildAvailableChecklistVariants(courseId),
+    availableVariants: buildAvailableChecklistVariants(course),
   };
 }
 
@@ -1216,6 +1257,13 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
 
   if (responseData.course) {
     responseData.course.assessmentVariant = variantSummary.course.assessmentVariant;
+    responseData.course.selectedAssessmentVariant = variantSummary.course.selectedAssessmentVariant;
+    responseData.course.configuredAssessmentVariant = variantSummary.course.configuredAssessmentVariant;
+    responseData.course.price = variantSummary.course.price;
+    responseData.course.currency = variantSummary.course.currency;
+    responseData.course.displayPrice = variantSummary.course.displayPrice;
+    responseData.course.pricing = variantSummary.course.pricing;
+    responseData.course.assessmentVariantPricing = variantSummary.course.assessmentVariantPricing;
   }
 
   return responseData;
@@ -1325,8 +1373,12 @@ function buildBookingChecklistFlowResponse(booking) {
   return responseData;
 }
 
-function buildCourseSnapshot(course) {
-  const pricing = calculateVatPricing(course.price || 0, course.vatEnabled);
+function buildCourseSnapshot(course, assessmentVariant) {
+  const selectedVariant = normalizeChecklistVariant(assessmentVariant || course.assessmentVariant) || "am2";
+  const pricing = calculateVatPricing(
+    resolveAssessmentVariantPriceForCourse(course, selectedVariant),
+    course.vatEnabled
+  );
 
   return {
     title: course.title,
@@ -1334,7 +1386,7 @@ function buildCourseSnapshot(course) {
     schedule: course.schedule || "",
     duration: course.duration || "",
     qualification: course.qualification || "",
-    assessmentVariant: normalizeChecklistVariant(course.assessmentVariant) || "am2",
+    assessmentVariant: selectedVariant,
     location: course.location || "",
     thumbnailUrl: course.thumbnailUrl || course.galleryImages?.[0] || "",
     price: pricing.amount,
@@ -2068,6 +2120,73 @@ async function findBookableCourse(payload) {
   }
 
   return { value: course };
+}
+
+function getRawRequestedAssessmentVariant(payload) {
+  return normalizeString(
+    payload?.assessmentVariant ||
+      payload?.assessment_variant ||
+      payload?.checklistVariant ||
+      payload?.variant ||
+      payload?.courseVariant ||
+      payload?.assessmentDetails?.assessmentVariant ||
+      payload?.assessmentDetails?.checklistVariant
+  );
+}
+
+function resolveBookingAssessmentVariant(course, payload, registrationPayload = {}) {
+  const rawRequestedVariant = getRawRequestedAssessmentVariant(payload);
+  const requestedVariant = normalizeChecklistVariant(rawRequestedVariant);
+  const courseVariant = inferChecklistVariantFromCourse(course);
+  const explicitAnswerId = normalizeString(
+    payload?.answerId ||
+      payload?.selectedAnswerId ||
+      payload?.optionId
+  );
+  const eligibilityAnswerId = normalizeString(
+    payload?.eligibilityCheck?.nvqRegistrationDate ||
+      registrationPayload?.eligibilityCheck?.nvqRegistrationDate
+  );
+  const selectedAnswerId = explicitAnswerId || eligibilityAnswerId;
+  const selectedOption = findEligibilityOptionById(selectedAnswerId);
+  const answerVariant = selectedOption?.leadsToVariant || "";
+
+  if (rawRequestedVariant && !requestedVariant) {
+    return {
+      error: "assessmentVariant must be one of am2, am2e, or am2e-v1",
+    };
+  }
+
+  if (explicitAnswerId && !selectedOption) {
+    return {
+      error: "Invalid answerId for nvq-registration-date",
+    };
+  }
+
+  if (requestedVariant && answerVariant && requestedVariant !== answerVariant) {
+    return {
+      error: "assessmentVariant does not match the selected eligibility answer",
+    };
+  }
+
+  if (
+    requestedVariant &&
+    !isAssessmentVariantPricingCourse(course) &&
+    requestedVariant !== courseVariant.variant
+  ) {
+    return {
+      error: "assessmentVariant can only be changed for am2-assessment-preparation",
+    };
+  }
+
+  return {
+    variant: answerVariant || requestedVariant || courseVariant.variant || "am2",
+    source: answerVariant
+      ? "eligibility-answer"
+      : requestedVariant
+        ? "request"
+        : courseVariant.source || "course",
+  };
 }
 
 function getBookingQueryForUser(id, userId) {
@@ -5470,7 +5589,15 @@ async function createBooking(req, res, next) {
     }
 
     const course = courseResult.value;
-    const courseSnapshot = buildCourseSnapshot(course);
+    const bookingVariantResult = resolveBookingAssessmentVariant(course, requestBody, registrationPayload);
+    if (bookingVariantResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: bookingVariantResult.error,
+      });
+    }
+
+    const courseSnapshot = buildCourseSnapshot(course, bookingVariantResult.variant);
     const sessionResult = buildSessionPayload(req.body || {}, {
       fallbackLocation: course.location || "",
     });
@@ -5484,6 +5611,7 @@ async function createBooking(req, res, next) {
     const existingPendingBooking = await Booking.findOne({
       user: req.user.id,
       course: course._id,
+      "courseSnapshot.assessmentVariant": bookingVariantResult.variant,
       status: "pending_payment",
       "payment.status": { $in: ["pending", "failed"] },
     }).sort({ createdAt: -1 });

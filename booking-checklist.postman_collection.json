@@ -19,6 +19,8 @@
     { "key": "candidateId", "value": "YOUR_CANDIDATE_BOOKING_ID" },
     { "key": "legalPageSlug", "value": "terms-and-conditions" },
     { "key": "legalPageSectionId", "value": "YOUR_LEGAL_PAGE_SECTION_ID" },
+    { "key": "am2CourseSlug", "value": "am2-assessment-preparation" },
+    { "key": "selectedAssessmentVariant", "value": "am2e" },
     { "key": "courseAssessmentVariant", "value": "am2" },
     { "key": "editableCoursePrice", "value": "885" },
     { "key": "am2CoursePrice", "value": "885" },
@@ -673,22 +675,21 @@
       "name": "Course Variation Pricing",
       "item": [
         {
-          "name": "List Admin Courses With Variation Prices",
+          "name": "Find AM2 Course With Variant Prices",
           "request": {
             "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
-            ],
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/admin/courses?page=1&limit=10",
+              "raw": "{{baseUrl}}/api/admin/courses?page=1&limit=10&search={{am2CourseSlug}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "courses"],
               "query": [
                 { "key": "page", "value": "1" },
-                { "key": "limit", "value": "10" }
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "{{am2CourseSlug}}" }
               ]
             },
-            "description": "Admin endpoint. Returns courses with assessmentVariant, assessmentVariantLabel, assessmentVariantDefaultPrice, and pricing.amount. Supported variations are am2 (AM2, default 885), am2e (AM2E, default 965), and am2e-v1 (AM2E V1, default 1235). The saved course price remains editable by admin."
+            "description": "Public course-admin list endpoint. Finds the am2-assessment-preparation course. Only this course returns assessmentVariantPricing with editable AM2, AM2E, and AM2E V1 prices."
           },
           "event": [
             {
@@ -697,203 +698,20 @@
                 "type": "text/javascript",
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.test('Admin courses listed', () => pm.expect(pm.response.code).to.equal(200));",
+                  "pm.test('Courses listed', () => pm.expect(pm.response.code).to.equal(200));",
                   "pm.test('Courses array returned', () => pm.expect(json.data && json.data.courses).to.be.an('array'));",
-                  "const course = json.data && json.data.courses && json.data.courses[0];",
+                  "const courses = (json.data && json.data.courses) || [];",
+                  "const course = courses.find((item) => item.slug === pm.collectionVariables.get('am2CourseSlug')) || courses[0];",
                   "if (course) {",
                   "  pm.collectionVariables.set('courseId', course.id);",
-                  "  if (course.assessmentVariant) pm.collectionVariables.set('courseAssessmentVariant', course.assessmentVariant);",
-                  "  if (course.pricing && course.pricing.amount !== undefined) pm.collectionVariables.set('editableCoursePrice', String(course.pricing.amount));",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Admin Course Variation Price",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "courses", "{{courseId}}"]
-            },
-            "description": "Admin endpoint. Returns one course with its saved editable price in data.course.pricing.amount, variation key in data.course.assessmentVariant, label in data.course.assessmentVariantLabel, and default price in data.course.assessmentVariantDefaultPrice."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const json = pm.response.json();",
-                  "pm.test('Admin course fetched', () => pm.expect(pm.response.code).to.equal(200));",
-                  "const course = json.data && json.data.course;",
-                  "pm.test('Variation pricing metadata returned', () => {",
+                  "}",
+                  "pm.test('AM2 course supports variant pricing', () => {",
                   "  pm.expect(course).to.be.an('object');",
-                  "  pm.expect(course).to.have.property('assessmentVariant');",
-                  "  pm.expect(course).to.have.property('assessmentVariantLabel');",
-                  "  pm.expect(course).to.have.property('assessmentVariantDefaultPrice');",
-                  "  pm.expect(course.pricing).to.have.property('amount');",
-                  "});",
-                  "if (course) {",
-                  "  pm.collectionVariables.set('courseAssessmentVariant', course.assessmentVariant);",
-                  "  pm.collectionVariables.set('editableCoursePrice', String(course.pricing.amount));",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create AM2 Course - 885",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"AM2 Assessment Course\",\n  \"shortDescription\": \"AM2 assessment course with editable admin pricing.\",\n  \"description\": \"AM2 assessment course with the default variation price. Admin can edit this price later from the dashboard or API.\",\n  \"assessmentVariant\": \"am2\",\n  \"duration\": \"5 Days\",\n  \"location\": \"London Training Centre\",\n  \"price\": {{am2CoursePrice}},\n  \"totalSeats\": 16,\n  \"sessionDate\": \"2026-06-15\",\n  \"timeSlot\": \"09:00 AM - 04:00 PM\",\n  \"vatEnabled\": false\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/courses",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "courses"]
-            },
-            "description": "Creates an AM2 course using the required default price 885. The API still stores price as an editable course field, so admins can change it in future years."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const json = pm.response.json();",
-                  "pm.test('AM2 course created', () => pm.expect(pm.response.code).to.equal(201));",
-                  "const course = json.data && json.data.course;",
-                  "pm.test('AM2 default price saved', () => {",
-                  "  pm.expect(course.assessmentVariant).to.equal('am2');",
-                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('am2CoursePrice')));",
-                  "});",
-                  "if (course && course.id) { pm.collectionVariables.set('courseId', course.id); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create AM2E Course - 965",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"AM2E Assessment Course\",\n  \"shortDescription\": \"AM2E assessment course with editable admin pricing.\",\n  \"description\": \"AM2E assessment course with the default variation price. Admin can edit this price later from the dashboard or API.\",\n  \"assessmentVariant\": \"am2e\",\n  \"duration\": \"5 Days\",\n  \"location\": \"London Training Centre\",\n  \"price\": {{am2eCoursePrice}},\n  \"totalSeats\": 16,\n  \"sessionDate\": \"2026-06-16\",\n  \"timeSlot\": \"09:00 AM - 04:00 PM\",\n  \"vatEnabled\": false\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/courses",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "courses"]
-            },
-            "description": "Creates an AM2E course using the required default price 965. The saved price is editable by admin."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const json = pm.response.json();",
-                  "pm.test('AM2E course created', () => pm.expect(pm.response.code).to.equal(201));",
-                  "const course = json.data && json.data.course;",
-                  "pm.test('AM2E default price saved', () => {",
-                  "  pm.expect(course.assessmentVariant).to.equal('am2e');",
-                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('am2eCoursePrice')));",
-                  "});",
-                  "if (course && course.id) { pm.collectionVariables.set('courseId', course.id); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create AM2E V1 Course - 1235",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"AM2E V1 Assessment Course\",\n  \"shortDescription\": \"AM2E V1 assessment course with editable admin pricing.\",\n  \"description\": \"AM2E V1 assessment course with the default variation price. Admin can edit this price later from the dashboard or API.\",\n  \"assessmentVariant\": \"am2e-v1\",\n  \"duration\": \"5 Days\",\n  \"location\": \"London Training Centre\",\n  \"price\": {{am2eV1CoursePrice}},\n  \"totalSeats\": 16,\n  \"sessionDate\": \"2026-06-17\",\n  \"timeSlot\": \"09:00 AM - 04:00 PM\",\n  \"vatEnabled\": false\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/courses",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "courses"]
-            },
-            "description": "Creates an AM2E V1 course using the required default price 1235. The saved price is editable by admin."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const json = pm.response.json();",
-                  "pm.test('AM2E V1 course created', () => pm.expect(pm.response.code).to.equal(201));",
-                  "const course = json.data && json.data.course;",
-                  "pm.test('AM2E V1 default price saved', () => {",
-                  "  pm.expect(course.assessmentVariant).to.equal('am2e-v1');",
-                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('am2eV1CoursePrice')));",
-                  "});",
-                  "if (course && course.id) { pm.collectionVariables.set('courseId', course.id); }"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Update Course Variation And Editable Price",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"assessmentVariant\": \"{{courseAssessmentVariant}}\",\n  \"price\": {{editableCoursePrice}}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "courses", "{{courseId}}"]
-            },
-            "description": "Admin endpoint. Updates an existing course's variation and saved editable price. Set courseAssessmentVariant to am2, am2e, or am2e-v1. Set editableCoursePrice to the current annual price you want to charge."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const json = pm.response.json();",
-                  "pm.test('Course variation price updated', () => pm.expect(pm.response.code).to.equal(200));",
-                  "const course = json.data && json.data.course;",
-                  "pm.test('Editable variation price saved', () => {",
-                  "  pm.expect(course.assessmentVariant).to.equal(pm.collectionVariables.get('courseAssessmentVariant'));",
-                  "  pm.expect(Number(course.pricing.amount)).to.equal(Number(pm.collectionVariables.get('editableCoursePrice')));",
+                  "  pm.expect(course.slug).to.equal(pm.collectionVariables.get('am2CourseSlug'));",
+                  "  pm.expect(course.supportsAssessmentVariantPricing).to.equal(true);",
+                  "  pm.expect(course.assessmentVariantPricing.prices).to.have.property('am2');",
+                  "  pm.expect(course.assessmentVariantPricing.prices).to.have.property('am2e');",
+                  "  pm.expect(course.assessmentVariantPricing.prices).to.have.property('am2e-v1');",
                   "});"
                 ]
               }
@@ -901,23 +719,16 @@
           ]
         },
         {
-          "name": "Update Course Price Only",
+          "name": "Get AM2 Variant Prices",
           "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
-              { "key": "Content-Type", "value": "application/json", "type": "text" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"price\": {{editableCoursePrice}}\n}"
-            },
+            "method": "GET",
+            "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}",
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}/assessment-variant-prices",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "courses", "{{courseId}}"]
+              "path": ["api", "admin", "courses", "{{courseId}}", "assessment-variant-prices"]
             },
-            "description": "Admin endpoint for yearly price changes. Keeps the existing variation and updates only the saved course price used by future bookings."
+            "description": "Returns the editable AM2 assessment variation prices for the course. Response data.course.assessmentVariantPricing.prices contains am2, am2e, and am2e-v1."
           },
           "event": [
             {
@@ -926,9 +737,140 @@
                 "type": "text/javascript",
                 "exec": [
                   "const json = pm.response.json();",
-                  "pm.test('Course price updated', () => pm.expect(pm.response.code).to.equal(200));",
-                  "const amount = json.data && json.data.course && json.data.course.pricing && json.data.course.pricing.amount;",
-                  "pm.test('Editable price saved', () => pm.expect(Number(amount)).to.equal(Number(pm.collectionVariables.get('editableCoursePrice'))));"
+                  "pm.test('Variant prices fetched', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const course = json.data && json.data.course;",
+                  "const prices = course && course.assessmentVariantPricing && course.assessmentVariantPricing.prices;",
+                  "pm.test('Three AM2 variation prices returned', () => {",
+                  "  pm.expect(course).to.be.an('object');",
+                  "  pm.expect(prices).to.be.an('object');",
+                  "  pm.expect(Number(prices.am2)).to.equal(Number(pm.collectionVariables.get('am2CoursePrice')));",
+                  "  pm.expect(Number(prices.am2e)).to.equal(Number(pm.collectionVariables.get('am2eCoursePrice')));",
+                  "  pm.expect(Number(prices['am2e-v1'])).to.equal(Number(pm.collectionVariables.get('am2eV1CoursePrice')));",
+                  "});",
+                  "if (prices) pm.collectionVariables.set('editableCoursePrice', String(prices[pm.collectionVariables.get('selectedAssessmentVariant')]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update AM2 Variant Prices",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prices\": {\n    \"am2\": {{am2CoursePrice}},\n    \"am2e\": {{am2eCoursePrice}},\n    \"am2e-v1\": {{am2eV1CoursePrice}}\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/courses/{{courseId}}/assessment-variant-prices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "courses", "{{courseId}}", "assessment-variant-prices"]
+            },
+            "description": "Updates all three AM2 variation prices on am2-assessment-preparation. The backend also syncs the legacy course price to the AM2 amount for old clients."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Variant prices updated', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const course = json.data && json.data.course;",
+                  "const prices = course && course.assessmentVariantPricing && course.assessmentVariantPricing.prices;",
+                  "pm.test('Admin prices saved exactly', () => {",
+                  "  pm.expect(Number(prices.am2)).to.equal(Number(pm.collectionVariables.get('am2CoursePrice')));",
+                  "  pm.expect(Number(prices.am2e)).to.equal(Number(pm.collectionVariables.get('am2eCoursePrice')));",
+                  "  pm.expect(Number(prices['am2e-v1'])).to.equal(Number(pm.collectionVariables.get('am2eV1CoursePrice')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Preview Selected Variant Flow Price",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings/checklist-flow?courseId={{courseId}}&variant={{selectedAssessmentVariant}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings", "checklist-flow"],
+              "query": [
+                { "key": "courseId", "value": "{{courseId}}" },
+                { "key": "variant", "value": "{{selectedAssessmentVariant}}" }
+              ]
+            },
+            "description": "Public flow preview. Change selectedAssessmentVariant to am2, am2e, or am2e-v1. data.course.pricing.amount must equal the admin price for that exact variation."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Flow preview fetched', () => pm.expect(pm.response.code).to.equal(200));",
+                  "const variant = pm.collectionVariables.get('selectedAssessmentVariant');",
+                  "const expected = {",
+                  "  am2: Number(pm.collectionVariables.get('am2CoursePrice')),",
+                  "  am2e: Number(pm.collectionVariables.get('am2eCoursePrice')),",
+                  "  'am2e-v1': Number(pm.collectionVariables.get('am2eV1CoursePrice'))",
+                  "}[variant];",
+                  "const course = json.data && json.data.course;",
+                  "pm.test('Flow returns selected variant price', () => {",
+                  "  pm.expect(course.assessmentVariant).to.equal(variant);",
+                  "  pm.expect(Number(course.pricing.amount)).to.equal(expected);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Booking With Selected Variant Price",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{userToken}}", "type": "text" },
+              { "key": "Content-Type", "value": "application/json", "type": "text" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"assessmentVariant\": \"{{selectedAssessmentVariant}}\",\n  \"personalDetails\": {\n    \"title\": \"Mr\",\n    \"firstName\": \"Postman\",\n    \"lastName\": \"Candidate\",\n    \"fullName\": \"Postman Candidate\",\n    \"email\": \"postman.candidate@example.com\",\n    \"phoneNumber\": \"07123456789\",\n    \"dateOfBirth\": \"1994-05-12\",\n    \"address\": \"10 Test Street, London\",\n    \"addressLine1\": \"10 Test Street\",\n    \"trainingCenter\": \"London Training Centre\",\n    \"city\": \"London\",\n    \"town\": \"London\",\n    \"postcode\": \"E1 1AA\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bookings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bookings"]
+            },
+            "description": "Authenticated learner endpoint. Creates or updates a pending booking for the selected AM2 variation. The saved booking.payment.amount and course.pricing.amount come from admin-managed variant prices, not from the request body."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Booking created or updated', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "const booking = json.data && json.data.booking;",
+                  "if (booking && booking.id) pm.collectionVariables.set('bookingId', booking.id);",
+                  "const variant = pm.collectionVariables.get('selectedAssessmentVariant');",
+                  "const expected = {",
+                  "  am2: Number(pm.collectionVariables.get('am2CoursePrice')),",
+                  "  am2e: Number(pm.collectionVariables.get('am2eCoursePrice')),",
+                  "  'am2e-v1': Number(pm.collectionVariables.get('am2eV1CoursePrice'))",
+                  "}[variant];",
+                  "pm.test('Booking uses exact selected variant and price', () => {",
+                  "  pm.expect(booking.course.assessmentVariant).to.equal(variant);",
+                  "  pm.expect(Number(booking.course.pricing.amount)).to.equal(expected);",
+                  "});"
                 ]
               }
             }

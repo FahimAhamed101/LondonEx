@@ -14,6 +14,8 @@ const {
   listCourseSourceOptions,
   createCourse,
   getAdminCourseById,
+  getAdminCourseVariantPrices,
+  updateAdminCourseVariantPrices,
   updateCourse,
   deleteCourse,
 } = require("../controllers/courseController");
@@ -48,6 +50,8 @@ const requireAdmin = [requireAuth, requireRole("admin")];
 
 router.get("/courses/options", requireAdmin, listCourseSourceOptions);
 router.get("/courses", listAdminCourses);
+router.get("/courses/:id/assessment-variant-prices", getAdminCourseVariantPrices);
+router.patch("/courses/:id/assessment-variant-prices", updateAdminCourseVariantPrices);
 router.get("/courses/:id", getAdminCourseById);
 router.patch("/courses/:id", uploadCourseImage, updateCourse);
 

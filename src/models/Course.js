@@ -20,6 +20,29 @@ const courseSectionSchema = new mongoose.Schema(
   }
 );
 
+const assessmentVariantPricingSchema = new mongoose.Schema(
+  {
+    am2: {
+      type: Number,
+      min: 0,
+      default: 885,
+    },
+    am2e: {
+      type: Number,
+      min: 0,
+      default: 965,
+    },
+    am2eV1: {
+      type: Number,
+      min: 0,
+      default: 1235,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const courseSchema = new mongoose.Schema(
   {
     title: {
@@ -128,6 +151,10 @@ const courseSchema = new mongoose.Schema(
       type: Number,
       min: 0,
       default: 0,
+    },
+    assessmentVariantPricing: {
+      type: assessmentVariantPricingSchema,
+      default: undefined,
     },
     totalSeats: {
       type: Number,
