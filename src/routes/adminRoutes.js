@@ -44,8 +44,12 @@ const { requireAuth, requireRole } = require("../middleware/authMiddleware");
 const { uploadCourseImage, uploadTeamImage } = require("../middleware/uploadMiddleware");
 
 const router = express.Router();
+const requireAdmin = [requireAuth, requireRole("admin")];
 
-router.use(requireAuth, requireRole("admin"));
+router.get("/courses/options", requireAdmin, listCourseSourceOptions);
+router.get("/courses/:id", getAdminCourseById);
+
+router.use(requireAdmin);
 
 router.get("/dashboard", getDashboard);
 router.get("/users", listUsers);
@@ -55,9 +59,7 @@ router.post("/candidates/stuck/reminders", sendStuckCandidateReminders);
 router.post("/candidates/:id/reminder", sendCandidateReminder);
 router.get("/candidates/:id", getCandidateById);
 router.get("/courses", listAdminCourses);
-router.get("/courses/options", listCourseSourceOptions);
 router.post("/courses", uploadCourseImage, createCourse);
-router.get("/courses/:id", getAdminCourseById);
 router.patch("/courses/:id", uploadCourseImage, updateCourse);
 router.delete("/courses/:id", deleteCourse);
 router.get("/team", listAdminTeamMembers);
