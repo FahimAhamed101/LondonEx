@@ -577,8 +577,31 @@ function getChecklistAssessmentName(variant = "am2") {
   return "AM2";
 }
 
-function buildCandidateReadinessDeclaration(variant = "am2") {
+function buildCandidateSignatureImagePayload(signature = {}) {
+  const details = mapSignatureForClient(signature);
+
+  return {
+    id: "candidate-signature-image",
+    label: "Candidate Signature Image",
+    type: "image",
+    status: details.status,
+    signatureType: details.signatureType,
+    signatureData: details.signatureData,
+    imageUrl: details.imageUrl,
+    signatureImageUrl: details.imageUrl,
+    previewUrl: details.previewUrl,
+    downloadUrl: details.downloadUrl,
+    available: details.available,
+    fileName: details.fileName,
+    signedAt: details.signedAt,
+    acceptedFileTypes: ["jpg", "jpeg", "png", "webp"],
+    uploadFields: ["file", "image", "signature", "candidateSignature", "signatureData", "signatureImageUrl"],
+  };
+}
+
+function buildCandidateReadinessDeclaration(variant = "am2", signature = {}) {
   const assessmentName = getChecklistAssessmentName(variant);
+  const signatureImage = buildCandidateSignatureImagePayload(signature);
   const bodyText =
     'As the candidate, I formally confirm that I believe I am consistently demonstrating a minimum of "adequate" in every area of Knowledge and Skill detailed in this checklist and that I do not require additional training or experience in any area to become occupationally competent.';
   const confirmationText = `By signing below, I formally confirm that I am ready to undertake the ${assessmentName} Assessment.`;
@@ -593,6 +616,11 @@ function buildCandidateReadinessDeclaration(variant = "am2") {
     paragraphs: [bodyText],
     confirmationText,
     note,
+    signatureImage,
+    imageUrl: signatureImage.imageUrl,
+    signatureImageUrl: signatureImage.signatureImageUrl,
+    previewUrl: signatureImage.previewUrl,
+    available: signatureImage.available,
     fields: [
       {
         id: "candidateSignature",
@@ -683,6 +711,10 @@ function buildAm2ChecklistFlowPreview(course) {
           supportedTypes: ["draw", "upload"],
           uploadFields: ["file", "image", "signature", "candidateSignature"],
           fields: candidateDeclaration.fields,
+          signatureImage: candidateDeclaration.signatureImage,
+          imageUrl: candidateDeclaration.imageUrl,
+          signatureImageUrl: candidateDeclaration.signatureImageUrl,
+          previewUrl: candidateDeclaration.previewUrl,
           declaration: candidateDeclaration,
         },
         trainingProvider: {
@@ -1004,6 +1036,10 @@ function buildAm2eChecklistFlowPreview(course, variant) {
           supportedTypes: ["draw", "upload"],
           uploadFields: ["file", "image", "signature", "candidateSignature"],
           fields: candidateDeclaration.fields,
+          signatureImage: candidateDeclaration.signatureImage,
+          imageUrl: candidateDeclaration.imageUrl,
+          signatureImageUrl: candidateDeclaration.signatureImageUrl,
+          previewUrl: candidateDeclaration.previewUrl,
           declaration: candidateDeclaration,
         },
         trainingProvider: {
@@ -2718,7 +2754,7 @@ function getSignatureMimeType(value, fileName = "") {
 }
 
 function isRenderableSignatureImage(value) {
-  return /^(https?:\/\/|\/uploads\/)/i.test(normalizeString(value));
+  return /^(https?:\/\/|\/uploads\/|data:image\/)/i.test(normalizeString(value));
 }
 
 function mapSignatureForClient(signature = {}) {
@@ -4846,6 +4882,7 @@ function buildBookingFlowChecklistFullScreen(booking, activeSectionKey) {
 }
 
 function buildBookingFlowSignaturesScreen(booking) {
+  const checklistVariant = getChecklistVariantForBooking(booking);
   const candidateSignatureStatus = getCandidateSignatureStatus(booking);
   const providerSignatureStatus = getTrainingProviderSignatureStatus(booking);
   const requestDetails = booking.trainingProviderSignatureRequest || {};
@@ -4854,6 +4891,10 @@ function buildBookingFlowSignaturesScreen(booking) {
     ...mapSignatureForClient(booking.candidateSignature || {}),
     status: candidateSignatureStatus,
   };
+  const candidateDeclaration = buildCandidateReadinessDeclaration(
+    checklistVariant,
+    booking.candidateSignature || {}
+  );
   const trainingProviderSignature = {
     ...mapSignatureForClient(booking.trainingProviderSignature || {}),
     status: providerSignatureStatus,
@@ -4862,6 +4903,7 @@ function buildBookingFlowSignaturesScreen(booking) {
   return {
     steps: buildBookingFlowSteps("signatures"),
     signatures: buildBookingSignaturesPayload(booking),
+    candidateDeclaration,
     card: {
       title: booking.personalDetails?.fullName || booking.courseSnapshot?.title || "Booking",
       subtitle: "Readiness for Assessment: Candidate Self-Assessment Checklist",
@@ -4874,6 +4916,11 @@ function buildBookingFlowSignaturesScreen(booking) {
         label: "Candidate",
         status: candidateSignatureStatus,
         signature: candidateSignature,
+        declaration: candidateDeclaration,
+        signatureImage: candidateDeclaration.signatureImage,
+        imageUrl: candidateDeclaration.imageUrl,
+        signatureImageUrl: candidateDeclaration.signatureImageUrl,
+        previewUrl: candidateDeclaration.previewUrl,
         action: {
           label: "Submit Signature",
           method: "POST",
