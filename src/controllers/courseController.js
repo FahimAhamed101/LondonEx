@@ -26,6 +26,7 @@ const ASSESSMENT_VARIANT_STORAGE_KEYS = {
   "am2e-v1": "am2eV1",
 };
 const VAT_RATE = 0.2;
+const UK_TIME_ZONE = "Europe/London";
 const POPULAR_COURSE_SEARCHES = [
   { label: "Gas Engineer", query: "Gas Engineer" },
   { label: "Electrical", query: "Electrical" },
@@ -141,6 +142,15 @@ function normalizeStringArray(values, maxItems = 10) {
     .map((value) => normalizeString(value))
     .filter(Boolean)
     .slice(0, maxItems);
+}
+
+function buildCourseImageUrls(course) {
+  const imageUrls = [
+    normalizeString(course.thumbnailUrl),
+    ...normalizeStringArray(course.galleryImages, 100),
+  ].filter(Boolean);
+
+  return Array.from(new Set(imageUrls));
 }
 
 function normalizeDetailSections(sections) {
@@ -529,6 +539,7 @@ function composeScheduleLabel(sessionDate, timeSlot, duration) {
   if (sessionDate) {
     scheduleParts.push(
       new Intl.DateTimeFormat("en-GB", {
+        timeZone: UK_TIME_ZONE,
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -596,7 +607,9 @@ function buildCoursePayload(payload, options = {}) {
   const assessmentVariant = normalizeAssessmentVariant(rawAssessmentVariant);
   const currency = normalizeString(payload.currency).toUpperCase() || "GBP";
   const tags = normalizeTags(payload.tags);
-  const detailSections = normalizeDetailSections(payload.detailSections);
+  const detailSections = normalizeDetailSections(
+    payload.detailSections || payload.sections || payload.courseDetails
+  );
 
   const courseData = {};
 
@@ -806,7 +819,12 @@ function buildCoursePayload(payload, options = {}) {
     courseData.tags = tags;
   }
 
-  if (Object.prototype.hasOwnProperty.call(payload, "detailSections") || !partial) {
+  if (
+    Object.prototype.hasOwnProperty.call(payload, "detailSections") ||
+    Object.prototype.hasOwnProperty.call(payload, "sections") ||
+    Object.prototype.hasOwnProperty.call(payload, "courseDetails") ||
+    !partial
+  ) {
     courseData.detailSections = detailSections;
   }
 
@@ -902,6 +920,7 @@ function formatDisplayDate(value) {
   }
 
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: UK_TIME_ZONE,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -1002,7 +1021,8 @@ async function searchCourses(req, res, next) {
 }
 
 function mapCourseSummary(course) {
-  const primaryImage = course.thumbnailUrl || course.galleryImages?.[0] || "";
+  const imageUrls = buildCourseImageUrls(course);
+  const primaryImage = imageUrls[0] || "";
   const pricing = buildCoursePricing(course);
   const variantConfig = getAssessmentVariantConfig(course.assessmentVariant);
   const assessmentVariantPricing = buildAssessmentVariantPricing(course);
@@ -1026,6 +1046,9 @@ function mapCourseSummary(course) {
     supportsAssessmentVariantPricing: Boolean(assessmentVariantPricing),
     assessmentVariantPricing,
     thumbnailUrl: primaryImage,
+    imageUrl: primaryImage,
+    imageUrls,
+    galleryImages: normalizeStringArray(course.galleryImages, 100),
     tags: course.tags,
     isPublished: course.isPublished,
     createdAt: course.createdAt,
@@ -1333,6 +1356,7 @@ function mapCourseDetail(course) {
     },
     bookNowModal: buildBookNowModal(course),
     sections,
+    detailSections: sections,
     order: course.order,
   };
 }
@@ -1354,7 +1378,14 @@ function mapCatalogCourseCard(course, reservedSeats = 0) {
     },
     image: {
       url: summary.thumbnailUrl,
+      urls: summary.imageUrls,
       alt: summary.title,
+    },
+    media: {
+      thumbnailUrl: summary.thumbnailUrl,
+      imageUrl: summary.imageUrl,
+      imageUrls: summary.imageUrls,
+      galleryImages: summary.galleryImages,
     },
     subtitle: summary.schedule || summary.duration || "",
     description: summary.shortDescription,

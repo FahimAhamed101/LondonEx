@@ -30,18 +30,23 @@ function buildBookingSubmittedNotificationPayload({ booking, actor, recipientId 
 
 function buildBookingApprovedNotificationPayload({ booking, actor, recipientId }) {
   const courseTitle = normalizeString(booking.courseSnapshot?.title) || "your booking";
+  const isPaid = booking.payment?.status === "paid";
 
   return {
     recipient: recipientId,
     actor: actor?._id || actor?.id || null,
     type: "booking_approved",
     booking: booking._id,
-    title: "Booking approved",
-    message: `Your ${courseTitle} application has been approved. You can continue to payment now.`,
+    title: isPaid ? "Booking approved" : "Paperwork approved",
+    message: isPaid
+      ? `Your ${courseTitle} booking has been approved and payment has been recorded.`
+      : `Your paperwork for ${courseTitle} has been approved. You can proceed to payment now.`,
     metadata: {
       bookingId: String(booking._id),
       applicationStatus: booking.applicationStatus || "approved",
       courseTitle,
+      paymentStatus: booking.payment?.status || "pending",
+      paymentRequired: !isPaid,
     },
   };
 }

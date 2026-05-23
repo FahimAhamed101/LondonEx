@@ -2,6 +2,7 @@ const nodemailer = require("nodemailer");
 
 let transporter = null;
 const smtpTimeoutMs = Number(process.env.SMTP_TIMEOUT_MS) || 15000;
+const UK_TIME_ZONE = "Europe/London";
 
 function normalizeEnvValue(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -173,6 +174,70 @@ async function sendCandidateReminderEmail({
   });
 }
 
+async function sendBookingApprovalEmail({
+  to,
+  candidateName,
+  courseTitle,
+  bookingNumber,
+  paymentUrl,
+  paymentApiUrl,
+  amountLabel,
+  isPaid = false,
+}) {
+  const config = ensureMailerConfig();
+  const mailTransport = getTransporter();
+  const greetingName = candidateName || "Candidate";
+  const course = courseTitle || "your course";
+  const subject = isPaid
+    ? `Your ${course} booking has been approved`
+    : `Your ${course} paperwork has been approved`;
+  const paymentLine = isPaid
+    ? "Your payment has already been recorded, so no further payment action is needed."
+    : `You can now proceed to payment${amountLabel ? ` for ${amountLabel}` : ""}.`;
+  const actionLabel = isPaid ? "View booking" : "Proceed to payment";
+  const actionUrl = paymentUrl || paymentApiUrl || "";
+
+  const text = [
+    `Dear ${greetingName},`,
+    "",
+    `Your paperwork for ${course} has been approved by the admin team.`,
+    paymentLine,
+    bookingNumber ? `Booking number: ${bookingNumber}` : "",
+    actionUrl ? "" : "",
+    actionUrl ? `${actionLabel}: ${actionUrl}` : "",
+    "",
+    "Best regards,",
+    "Admin Team",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+      <p>Dear ${escapeHtml(greetingName)},</p>
+      <p>
+        Your paperwork for <strong>${escapeHtml(course)}</strong> has been approved by the admin team.
+      </p>
+      <p>${escapeHtml(paymentLine)}</p>
+      ${bookingNumber ? `<p><strong>Booking number:</strong> ${escapeHtml(bookingNumber)}</p>` : ""}
+      ${
+        actionUrl
+          ? `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#0ea5e9;color:#ffffff;text-decoration:none;border-radius:8px;">${escapeHtml(actionLabel)}</a></p>`
+          : ""
+      }
+      <p>Best regards,<br />Admin Team</p>
+    </div>
+  `;
+
+  return mailTransport.sendMail({
+    from: buildFromHeader(config.fromName, config.fromEmail),
+    to,
+    subject,
+    text,
+    html,
+  });
+}
+
 async function sendTrainingProviderSignatureRequestEmail({
   to,
   providerName,
@@ -188,7 +253,9 @@ async function sendTrainingProviderSignatureRequestEmail({
   const mailTransport = getTransporter();
   const greeting = providerName ? `Hello ${providerName},` : "Hello,";
   const expiryLine = expiresAt
-    ? `This signature link will expire on ${new Date(expiresAt).toLocaleString("en-GB")}.`
+    ? `This signature link will expire on ${new Date(expiresAt).toLocaleString("en-GB", {
+        timeZone: UK_TIME_ZONE,
+      })}.`
     : "";
 
   const text = [
@@ -291,6 +358,7 @@ module.exports = {
   isMailerReady,
   sendPasswordResetEmail,
   sendCandidateReminderEmail,
+  sendBookingApprovalEmail,
   sendTrainingProviderSignatureRequestEmail,
   sendContactFormNotificationEmail,
 };

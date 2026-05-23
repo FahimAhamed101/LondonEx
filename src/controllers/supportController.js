@@ -13,6 +13,7 @@ const SUPPORT_CATEGORIES = [
   "technical",
   "general",
 ];
+const UK_TIME_ZONE = "Europe/London";
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -37,6 +38,7 @@ function formatDisplayDateTime(value) {
   }
 
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: UK_TIME_ZONE,
     day: "numeric",
     month: "short",
     year: "numeric",

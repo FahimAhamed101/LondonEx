@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const Notification = require("../models/Notification");
 
+const UK_TIME_ZONE = "Europe/London";
+
 function formatDisplayDateTime(value) {
   if (!value) {
     return "";
@@ -13,6 +15,7 @@ function formatDisplayDateTime(value) {
   }
 
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: UK_TIME_ZONE,
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -24,7 +27,7 @@ function formatDisplayDateTime(value) {
 function getNotificationTypeLabel(type) {
   return {
     booking_submitted: "Booking Submitted",
-    booking_approved: "Booking Approved",
+    booking_approved: "Paperwork Approved",
   }[type] || "Notification";
 }
 

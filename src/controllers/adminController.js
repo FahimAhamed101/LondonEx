@@ -12,6 +12,7 @@ const SUBMISSION_STATUS_OPTIONS = [
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
 ];
+const UK_TIME_ZONE = "Europe/London";
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -96,6 +97,7 @@ function formatDisplayDateTime(value) {
   }
 
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: UK_TIME_ZONE,
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -105,6 +107,49 @@ function formatDisplayDateTime(value) {
   })
     .format(date)
     .replace(",", "");
+}
+
+function formatDisplayMoney(amount, currency = "GBP") {
+  const normalizedAmount = Number(amount || 0);
+
+  try {
+    return new Intl.NumberFormat("en-GB", {
+      style: "currency",
+      currency: currency || "GBP",
+      minimumFractionDigits: Number.isInteger(normalizedAmount) ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(normalizedAmount);
+  } catch (error) {
+    return `${currency || "GBP"} ${normalizedAmount.toFixed(2)}`;
+  }
+}
+
+function formatDateOnly(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDisplayDateShort(value) {
+  const dateOnly = formatDateOnly(value);
+
+  if (!dateOnly) {
+    return "";
+  }
+
+  const [year, month, day] = dateOnly.split("-");
+  return `${day}/${month}/${year.slice(-2)}`;
+}
+
+function getBookingSubmittedAt(booking) {
+  return booking.submittedAt || booking.createdAt;
 }
 
 function formatRelativeTime(value) {
@@ -161,6 +206,14 @@ function roundToOneDecimal(value) {
 }
 
 function mapSubmissionStatus(booking) {
+  if (booking.applicationStatus === "rejected") {
+    return {
+      key: "rejected",
+      label: "Rejected",
+      tone: "danger",
+    };
+  }
+
   if (booking.status === "cancelled" || booking.payment?.status === "refunded") {
     return {
       key: "rejected",
@@ -174,6 +227,14 @@ function mapSubmissionStatus(booking) {
       key: "rejected",
       label: "Rejected",
       tone: "danger",
+    };
+  }
+
+  if (booking.applicationStatus === "approved") {
+    return {
+      key: "approved",
+      label: "Approved",
+      tone: "success",
     };
   }
 
@@ -259,6 +320,7 @@ function mapRecentSubmission(booking) {
   const candidateName = booking.personalDetails?.fullName || booking.user?.name || "Unknown Candidate";
   const candidateEmail = booking.personalDetails?.email || booking.user?.email || "";
   const status = mapSubmissionStatus(booking);
+  const submittedAt = getBookingSubmittedAt(booking);
 
   return {
     id: booking._id,
@@ -275,9 +337,9 @@ function mapRecentSubmission(booking) {
       title: booking.courseSnapshot?.title || "",
       slug: booking.courseSnapshot?.slug || "",
     },
-    submittedAt: booking.createdAt,
-    submittedAtLabel: formatDisplayDateTime(booking.createdAt),
-    submittedRelative: formatRelativeTime(booking.createdAt),
+    submittedAt,
+    submittedAtLabel: formatDisplayDateTime(submittedAt),
+    submittedRelative: formatRelativeTime(submittedAt),
     status,
     action: {
       label: "View",
@@ -359,6 +421,7 @@ function mapCandidateRow(booking, now = new Date()) {
   const candidateEmail = booking.personalDetails?.email || booking.user?.email || "";
   const progress = calculateCandidateProgress(booking, now);
   const candidateId = String(booking.user?._id || booking._id || "");
+  const submittedAt = getBookingSubmittedAt(booking);
 
   return {
     id: booking._id,
@@ -376,8 +439,8 @@ function mapCandidateRow(booking, now = new Date()) {
       slug: booking.courseSnapshot?.slug || "",
     },
     progress,
-    submittedAt: booking.createdAt,
-    submittedAtLabel: formatDisplayDateTime(booking.createdAt),
+    submittedAt,
+    submittedAtLabel: formatDisplayDateTime(submittedAt),
     isStuck: isStuckCandidate(booking, progress, now),
     bookingStatus: mapSubmissionStatus(booking),
     actions: {
@@ -736,18 +799,20 @@ function buildCandidateVerification(booking) {
 function buildCandidateReviewDecision(booking) {
   const currentStatus = buildCandidateReviewStatus(booking);
   const approvePayload = {
-    status: "confirmed",
-    paymentStatus: "paid",
+    applicationStatus: "approved",
   };
   const rejectPayload =
     booking.payment?.status === "paid"
       ? {
+          applicationStatus: "rejected",
           status: "cancelled",
           paymentStatus: "refunded",
         }
       : {
+          applicationStatus: "rejected",
           status: "cancelled",
         };
+  const applicationStatus = booking.applicationStatus || "draft";
 
   return {
     title: "Review Decision",
@@ -759,7 +824,7 @@ function buildCandidateReviewDecision(booking) {
         method: "PATCH",
         url: `/api/admin/bookings/${booking._id}`,
         payload: approvePayload,
-        enabled: !(booking.status === "confirmed" && booking.payment?.status === "paid"),
+        enabled: applicationStatus !== "approved" && booking.status !== "cancelled",
       },
       reject: {
         label: "Reject Candidate",
@@ -782,14 +847,18 @@ function mapCandidateView(booking) {
   const candidateNumber = String(booking.user?._id || booking._id || "")
     .slice(-6)
     .toUpperCase();
+  const submittedAt = getBookingSubmittedAt(booking);
+  const dateOfBirth = formatDateOnly(booking.personalDetails?.dateOfBirth);
+  const dateOfBirthLabel = formatDisplayDateShort(booking.personalDetails?.dateOfBirth);
+  const niNumber = booking.personalDetails?.niNumber || "";
 
   return {
     id: booking._id,
     bookingId: booking._id,
     bookingNumber: booking.bookingNumber,
-    submittedAt: booking.createdAt,
-    submittedAtLabel: formatDisplayDateTime(booking.createdAt),
-    submittedRelative: formatRelativeTime(booking.createdAt),
+    submittedAt,
+    submittedAtLabel: formatDisplayDateTime(submittedAt),
+    submittedRelative: formatRelativeTime(submittedAt),
     reviewStatus,
     breadcrumbs: [
       {
@@ -813,8 +882,12 @@ function mapCandidateView(booking) {
       initial: getInitial(candidateName),
       avatarTone: getAvatarTone(candidateName || candidateEmail),
       candidateNumber,
-      nationalInsuranceNumber: null,
-      submittedAtLabel: formatDisplayDateTime(booking.createdAt),
+      dateOfBirth,
+      dateOfBirthLabel,
+      dob: dateOfBirthLabel,
+      niNumber,
+      nationalInsuranceNumber: niNumber,
+      submittedAtLabel: formatDisplayDateTime(submittedAt),
       address: booking.personalDetails?.address || "",
       city: booking.personalDetails?.city || "",
       postcode: booking.personalDetails?.postcode || "",
@@ -908,6 +981,7 @@ async function getDashboard(req, res, next) {
       pendingBookings,
       recentUsers,
       recentSubmissions,
+      recentPaidBookings,
       recentBookingsForActivity,
       recentCourses,
     ] = await Promise.all([
@@ -922,6 +996,10 @@ async function getDashboard(req, res, next) {
       }),
       User.find().sort({ createdAt: -1 }).limit(5).select("name email role createdAt"),
       Booking.find().populate("user", "name email").sort({ createdAt: -1 }).limit(10),
+      Booking.find({ "payment.status": "paid" })
+        .populate("user", "name email")
+        .sort({ "payment.paidAt": -1, updatedAt: -1, createdAt: -1 })
+        .limit(10),
       Booking.find()
         .populate("user", "name email")
         .sort({ updatedAt: -1, createdAt: -1 })
@@ -1012,25 +1090,27 @@ async function getDashboard(req, res, next) {
       icon: "user",
     }));
 
-    const paymentActivities = recentSubmissions
-      .filter((b) => b.payment?.status === "paid")
-      .map((booking) => {
-        const candidateName =
-          booking.personalDetails?.fullName || booking.user?.name || "A candidate";
-        const amount = booking.payment?.amount || 0;
-        const currency = booking.payment?.currency || "GBP";
-        const paidAt = booking.payment?.paidAt || booking.updatedAt || booking.createdAt;
-        return {
-          id: `payment-${booking._id}`,
-          type: "payment_received",
-          title: `Payment received from ${candidateName}`,
-          subtitle: `${currency} ${amount.toFixed(2)} — ${booking.courseSnapshot?.title || ""}`,
-          occurredAt: paidAt,
-          relativeTime: formatRelativeTime(paidAt),
-          tone: "success",
-          icon: "payment",
-        };
-      });
+    const paymentActivities = recentPaidBookings.map((booking) => {
+      const candidateName =
+        booking.personalDetails?.fullName || booking.user?.name || "A candidate";
+      const amount = booking.payment?.amount || 0;
+      const currency = booking.payment?.currency || "GBP";
+      const displayAmount = formatDisplayMoney(amount, currency);
+      const paidAt = booking.payment?.paidAt || booking.updatedAt || booking.createdAt;
+      return {
+        id: `payment-${booking._id}`,
+        type: "payment_received",
+        title: `${candidateName} has paid ${displayAmount}`,
+        amount,
+        currency,
+        displayAmount,
+        subtitle: booking.courseSnapshot?.title || "",
+        occurredAt: paidAt,
+        relativeTime: formatRelativeTime(paidAt),
+        tone: "success",
+        icon: "payment",
+      };
+    });
 
     const recentActivity = [...signupActivities, ...paymentActivities]
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
@@ -1084,7 +1164,7 @@ async function getDashboard(req, res, next) {
       icon: "course",
     }));
 
-    const systemActivityItems = [...checklistActivities, ...courseUpdateActivities]
+    const systemActivityItems = [...paymentActivities, ...checklistActivities, ...courseUpdateActivities]
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
       .slice(0, 8);
 

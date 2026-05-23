@@ -21,7 +21,10 @@ const {
   confirmStripePaymentIntent,
   syncBookingPaymentWithStripeByIntentId,
 } = require("../utils/stripeBooking");
-const { sendTrainingProviderSignatureRequestEmail } = require("../utils/mailer");
+const {
+  sendBookingApprovalEmail,
+  sendTrainingProviderSignatureRequestEmail,
+} = require("../utils/mailer");
 const {
   notifyAdminsOfBookingSubmission,
   notifyUserOfBookingApproval,
@@ -34,6 +37,7 @@ const APPLICATION_STATUSES = ["draft", "submitted", "under_review", "approved", 
 const CHECKLIST_VARIANTS = ["am2", "am2e", "am2e-v1"];
 const SIGNATURE_DATA_MAX_LENGTH = 500000;
 const VAT_RATE = 0.2;
+const UK_TIME_ZONE = "Europe/London";
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -109,6 +113,25 @@ function buildTrainingProviderFrontendUrl(frontendBaseUrl, token) {
   return `${normalizedBaseUrl.replace(/\/+$/, "")}/provider-signature/${encodeURIComponent(token)}`;
 }
 
+function getFrontendBaseUrl() {
+  return (
+    normalizeString(process.env.FRONTEND_URL) ||
+    normalizeString(process.env.CLIENT_URL) ||
+    normalizeString(process.env.APP_URL) ||
+    normalizeString(process.env.PUBLIC_APP_URL)
+  ).replace(/\/+$/, "");
+}
+
+function getBookingPaymentFrontendUrl(booking) {
+  const frontendBaseUrl = getFrontendBaseUrl();
+
+  if (!frontendBaseUrl || !booking?._id) {
+    return "";
+  }
+
+  return `${frontendBaseUrl}/bookings/${encodeURIComponent(String(booking._id))}/checkout/payment`;
+}
+
 function getTrainingProviderSignatureLink(token) {
   const configuredSignatureBase = normalizeString(process.env.TRAINING_PROVIDER_SIGNATURE_URL_BASE);
 
@@ -116,11 +139,7 @@ function getTrainingProviderSignatureLink(token) {
     return buildUrlFromBase(configuredSignatureBase, token);
   }
 
-  const frontendBase =
-    normalizeString(process.env.FRONTEND_URL) ||
-    normalizeString(process.env.CLIENT_URL) ||
-    normalizeString(process.env.APP_URL) ||
-    "http://localhost:3000";
+  const frontendBase = getFrontendBaseUrl() || "http://localhost:3000";
 
   if (frontendBase) {
     return buildTrainingProviderFrontendUrl(frontendBase, token);
@@ -266,6 +285,7 @@ function formatDisplayDate(value) {
   }
 
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: UK_TIME_ZONE,
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -283,6 +303,7 @@ function formatDisplayTime(value) {
   }
 
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: UK_TIME_ZONE,
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
@@ -310,6 +331,17 @@ function formatDateOnly(value) {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function formatDisplayDateShort(value) {
+  const dateOnly = formatDateOnly(value);
+
+  if (!dateOnly) {
+    return "";
+  }
+
+  const [year, month, day] = dateOnly.split("-");
+  return `${day}/${month}/${year.slice(-2)}`;
 }
 
 function parsePagination(query) {
@@ -533,8 +565,60 @@ function buildAm2ChecklistFlowCoverageReport() {
   };
 }
 
+function getChecklistAssessmentName(variant = "am2") {
+  if (variant === "am2e") {
+    return "AM2E";
+  }
+
+  if (variant === "am2e-v1") {
+    return "AM2E V1";
+  }
+
+  return "AM2";
+}
+
+function buildCandidateReadinessDeclaration(variant = "am2") {
+  const assessmentName = getChecklistAssessmentName(variant);
+  const bodyText =
+    'As the candidate, I formally confirm that I believe I am consistently demonstrating a minimum of "adequate" in every area of Knowledge and Skill detailed in this checklist and that I do not require additional training or experience in any area to become occupationally competent.';
+  const confirmationText = `By signing below, I formally confirm that I am ready to undertake the ${assessmentName} Assessment.`;
+  const note =
+    "NET will only accept dated signatures within 6 months of the gateway application.";
+
+  return {
+    id: "candidate-readiness-declaration",
+    title: "Candidate Declaration of Readiness for Assessment",
+    assessmentName,
+    bodyText,
+    paragraphs: [bodyText],
+    confirmationText,
+    note,
+    fields: [
+      {
+        id: "candidateSignature",
+        label: "Candidate Signature",
+        type: "signature",
+        required: true,
+      },
+      {
+        id: "printName",
+        label: "Print Name",
+        type: "text",
+        required: true,
+      },
+      {
+        id: "date",
+        label: "Date",
+        type: "date",
+        required: true,
+      },
+    ],
+  };
+}
+
 function buildAm2ChecklistFlowPreview(course) {
   const checklistMetadata = getChecklistVariantMetadata("am2");
+  const candidateDeclaration = buildCandidateReadinessDeclaration("am2");
   const checklistTemplates = buildChecklistTemplates("am2");
   const checklistSections = checklistTemplates.map((section) => ({
     id: section.id,
@@ -593,10 +677,13 @@ function buildAm2ChecklistFlowPreview(course) {
           "Complete all sections of the checklist. You can use the full checklist page for a detailed view.",
       },
       checklistSections,
+      candidateDeclaration,
       signatures: {
         candidate: {
           supportedTypes: ["draw", "upload"],
           uploadFields: ["file", "image", "signature", "candidateSignature"],
+          fields: candidateDeclaration.fields,
+          declaration: candidateDeclaration,
         },
         trainingProvider: {
           fields: ["trainingProviderEmail", "trainingProviderName", "subject", "message"],
@@ -854,6 +941,7 @@ function resolveAm2eChecklistVariant(requestedVariant, query = {}) {
 
 function buildAm2eChecklistFlowPreview(course, variant) {
   const checklistMetadata = getChecklistVariantMetadata(variant);
+  const candidateDeclaration = buildCandidateReadinessDeclaration(variant);
   const checklistTemplates = buildChecklistTemplates(variant);
   const checklistSections = checklistTemplates.map((section) => ({
     id: section.id,
@@ -910,10 +998,13 @@ function buildAm2eChecklistFlowPreview(course, variant) {
           "Complete all sections of the checklist. You can use the full checklist page for a detailed view.",
       },
       checklistSections,
+      candidateDeclaration,
       signatures: {
         candidate: {
           supportedTypes: ["draw", "upload"],
           uploadFields: ["file", "image", "signature", "candidateSignature"],
+          fields: candidateDeclaration.fields,
+          declaration: candidateDeclaration,
         },
         trainingProvider: {
           fields: ["trainingProviderEmail", "trainingProviderName", "subject", "message"],
@@ -1428,6 +1519,70 @@ function getMailDeliveryFailureMessage(error) {
   }
 
   return "Training provider signature email could not be sent right now";
+}
+
+function getBookingApprovalMailFailureMessage(error) {
+  const message = getMailDeliveryFailureMessage(error);
+
+  return message === "Training provider signature email could not be sent right now"
+    ? "Booking approval email could not be sent right now"
+    : message;
+}
+
+function buildBookingApprovalEmailPayload(booking) {
+  const candidateEmail = normalizeEmail(booking.personalDetails?.email || booking.user?.email);
+  const isPaid = booking.payment?.status === "paid";
+
+  return {
+    to: candidateEmail,
+    candidateName:
+      normalizeString(booking.personalDetails?.fullName) ||
+      normalizeString(booking.user?.name) ||
+      "Candidate",
+    courseTitle: normalizeString(booking.courseSnapshot?.title) || "your course",
+    bookingNumber: booking.bookingNumber || "",
+    paymentUrl: getBookingPaymentFrontendUrl(booking),
+    paymentApiUrl: booking?._id ? `/api/bookings/${booking._id}/checkout/payment` : "",
+    amountLabel: formatDisplayPrice(
+      booking.payment?.amount || 0,
+      booking.payment?.currency || booking.courseSnapshot?.currency || "GBP"
+    ),
+    isPaid,
+  };
+}
+
+async function sendBookingApprovalEmailForBooking(booking) {
+  const payload = buildBookingApprovalEmailPayload(booking);
+
+  if (!payload.to || !validateEmail(payload.to)) {
+    return {
+      attempted: false,
+      sent: false,
+      to: payload.to || "",
+      message: "Candidate email is missing",
+    };
+  }
+
+  try {
+    await sendBookingApprovalEmail(payload);
+
+    return {
+      attempted: true,
+      sent: true,
+      to: payload.to,
+      message: "Booking approval email sent successfully",
+    };
+  } catch (emailError) {
+    const emailDelivery = {
+      attempted: true,
+      sent: false,
+      to: payload.to,
+      message: getBookingApprovalMailFailureMessage(emailError),
+    };
+
+    console.error("[booking-approval-email]", emailError?.message || emailError);
+    return emailDelivery;
+  }
 }
 
 function validatePhoneNumber(phoneNumber) {
@@ -2784,6 +2939,9 @@ function buildAdminBookingProfile(booking) {
   const candidateId = String(booking.user?._id || booking._id || "")
     .slice(-6)
     .toUpperCase();
+  const dateOfBirth = formatDateOnly(booking.personalDetails?.dateOfBirth);
+  const dateOfBirthLabel = formatDisplayDateShort(booking.personalDetails?.dateOfBirth);
+  const niNumber = booking.personalDetails?.niNumber || "";
 
   return {
     title: "Candidate Profile",
@@ -2798,7 +2956,11 @@ function buildAdminBookingProfile(booking) {
     lifecycleStatus: getAdminBookingLifecycleStatus(booking),
     email: candidateEmail,
     phoneNumber: booking.personalDetails?.phoneNumber || "",
-    nationalInsuranceNumber: null,
+    dateOfBirth,
+    dateOfBirthLabel,
+    dob: dateOfBirthLabel,
+    niNumber,
+    nationalInsuranceNumber: niNumber,
     address: booking.personalDetails?.address || "",
     city: booking.personalDetails?.city || "",
     postcode: booking.personalDetails?.postcode || "",
@@ -7515,16 +7677,31 @@ async function updateAdminBooking(req, res, next) {
 
     await booking.save();
 
+    let approvalNotification = {
+      created: false,
+      count: 0,
+    };
+    let approvalEmailDelivery = null;
     const nextApplicationStatus = booking.applicationStatus || "draft";
     if (previousApplicationStatus !== "approved" && nextApplicationStatus === "approved") {
-      await notifyUserOfBookingApproval(booking, req.user);
+      const createdNotifications = await notifyUserOfBookingApproval(booking, req.user);
+      approvalNotification = {
+        created: createdNotifications.length > 0,
+        count: createdNotifications.length,
+      };
+      approvalEmailDelivery = await sendBookingApprovalEmailForBooking(booking);
     }
 
     return res.status(200).json({
       success: true,
-      message: "Booking updated successfully",
+      message:
+        approvalEmailDelivery && approvalEmailDelivery.attempted && !approvalEmailDelivery.sent
+          ? "Booking updated successfully, but approval email delivery failed"
+          : "Booking updated successfully",
       data: {
         booking: mapAdminBookingDetail(booking),
+        approvalNotification,
+        approvalEmailDelivery,
       },
     });
   } catch (error) {
