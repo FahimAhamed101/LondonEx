@@ -599,9 +599,21 @@ function buildCandidateSignatureImagePayload(signature = {}) {
   };
 }
 
-function buildCandidateReadinessDeclaration(variant = "am2", signature = {}) {
+function getCandidatePrintNameFromQuery(query = {}) {
+  return normalizeString(
+    query.printName ||
+      query.candidateName ||
+      query.fullName ||
+      query.signerName ||
+      query.name
+  );
+}
+
+function buildCandidateReadinessDeclaration(variant = "am2", signature = {}, options = {}) {
   const assessmentName = getChecklistAssessmentName(variant);
   const signatureImage = buildCandidateSignatureImagePayload(signature);
+  const printName = normalizeString(options.printName) || normalizeString(signature.signerName);
+  const signedDate = formatDateOnly(signature.signedAt);
   const bodyText =
     'As the candidate, I formally confirm that I believe I am consistently demonstrating a minimum of "adequate" in every area of Knowledge and Skill detailed in this checklist and that I do not require additional training or experience in any area to become occupationally competent.';
   const confirmationText = `By signing below, I formally confirm that I am ready to undertake the ${assessmentName} Assessment.`;
@@ -621,32 +633,48 @@ function buildCandidateReadinessDeclaration(variant = "am2", signature = {}) {
     signatureImageUrl: signatureImage.signatureImageUrl,
     previewUrl: signatureImage.previewUrl,
     available: signatureImage.available,
+    printName,
+    printNameValue: printName,
+    candidateName: printName,
+    dateValue: signedDate,
     fields: [
       {
         id: "candidateSignature",
         label: "Candidate Signature",
         type: "signature",
+        value: signatureImage.imageUrl,
+        defaultValue: signatureImage.imageUrl,
+        imageUrl: signatureImage.imageUrl,
         required: true,
       },
       {
         id: "printName",
         label: "Print Name",
         type: "text",
+        value: printName,
+        defaultValue: printName,
+        autoFillFrom: "candidate.fullName",
         required: true,
       },
       {
         id: "date",
         label: "Date",
         type: "date",
+        value: signedDate,
+        defaultValue: signedDate,
         required: true,
       },
     ],
   };
 }
 
-function buildAm2ChecklistFlowPreview(course) {
+function buildAm2ChecklistFlowPreview(course, options = {}) {
   const checklistMetadata = getChecklistVariantMetadata("am2");
-  const candidateDeclaration = buildCandidateReadinessDeclaration("am2");
+  const candidateDeclaration = buildCandidateReadinessDeclaration(
+    "am2",
+    options.signature || {},
+    options
+  );
   const checklistTemplates = buildChecklistTemplates("am2");
   const checklistSections = checklistTemplates.map((section) => ({
     id: section.id,
@@ -971,9 +999,13 @@ function resolveAm2eChecklistVariant(requestedVariant, query = {}) {
   };
 }
 
-function buildAm2eChecklistFlowPreview(course, variant) {
+function buildAm2eChecklistFlowPreview(course, variant, options = {}) {
   const checklistMetadata = getChecklistVariantMetadata(variant);
-  const candidateDeclaration = buildCandidateReadinessDeclaration(variant);
+  const candidateDeclaration = buildCandidateReadinessDeclaration(
+    variant,
+    options.signature || {},
+    options
+  );
   const checklistTemplates = buildChecklistTemplates(variant);
   const checklistSections = checklistTemplates.map((section) => ({
     id: section.id,
@@ -1370,10 +1402,13 @@ function buildChecklistVariantSummary(course, variantResult, query = {}) {
 }
 
 function buildChecklistFlowResponseData(course, variantResult, query = {}) {
+  const candidateDeclarationOptions = {
+    printName: getCandidatePrintNameFromQuery(query),
+  };
   const responseData =
     variantResult.variant === "am2"
-      ? buildAm2ChecklistFlowPreview(course)
-      : buildAm2eChecklistFlowPreview(course, variantResult.variant);
+      ? buildAm2ChecklistFlowPreview(course, candidateDeclarationOptions)
+      : buildAm2eChecklistFlowPreview(course, variantResult.variant, candidateDeclarationOptions);
   const variantSummary = buildChecklistVariantSummary(course, variantResult, query);
 
   responseData.checklistVariant = variantResult.variant;
@@ -4893,7 +4928,14 @@ function buildBookingFlowSignaturesScreen(booking) {
   };
   const candidateDeclaration = buildCandidateReadinessDeclaration(
     checklistVariant,
-    booking.candidateSignature || {}
+    booking.candidateSignature || {},
+    {
+      printName:
+        booking.personalDetails?.fullName ||
+        booking.candidateSignature?.signerName ||
+        booking.user?.name ||
+        "",
+    }
   );
   const trainingProviderSignature = {
     ...mapSignatureForClient(booking.trainingProviderSignature || {}),
