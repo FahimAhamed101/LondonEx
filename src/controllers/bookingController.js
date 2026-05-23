@@ -579,6 +579,8 @@ function getChecklistAssessmentName(variant = "am2") {
 
 function buildCandidateSignatureImagePayload(signature = {}) {
   const details = mapSignatureForClient(signature);
+  const dateValue = formatDateOnly(details.signedAt);
+  const dateLabel = formatDisplayDateShort(details.signedAt);
 
   return {
     id: "candidate-signature-image",
@@ -594,8 +596,80 @@ function buildCandidateSignatureImagePayload(signature = {}) {
     available: details.available,
     fileName: details.fileName,
     signedAt: details.signedAt,
+    date: dateValue,
+    dateValue,
+    dateLabel,
     acceptedFileTypes: ["jpg", "jpeg", "png", "webp"],
     uploadFields: ["file", "image", "signature", "candidateSignature", "signatureData", "signatureImageUrl"],
+  };
+}
+
+function buildTrainingProviderSignaturePayload(signature = {}) {
+  const details = mapSignatureForClient(signature);
+  const dateValue = formatDateOnly(details.signedAt);
+  const dateLabel = formatDisplayDateShort(details.signedAt);
+
+  return {
+    id: "training-provider-signature",
+    label: "Training Provider Signature",
+    status: details.status,
+    signerName: details.signerName,
+    signerEmail: details.signerEmail,
+    signatureType: details.signatureType,
+    signatureData: details.signatureData,
+    imageUrl: details.imageUrl,
+    signatureImageUrl: details.imageUrl,
+    previewUrl: details.previewUrl,
+    downloadUrl: details.downloadUrl,
+    available: details.available,
+    fileName: details.fileName,
+    signedAt: details.signedAt,
+    date: dateValue,
+    dateValue,
+    dateLabel,
+    signatureImage: {
+      id: "training-provider-signature-image",
+      label: "Training Provider Signature Image",
+      type: "image",
+      signatureData: details.signatureData,
+      imageUrl: details.imageUrl,
+      signatureImageUrl: details.imageUrl,
+      previewUrl: details.previewUrl,
+      downloadUrl: details.downloadUrl,
+      available: details.available,
+      fileName: details.fileName,
+      signedAt: details.signedAt,
+      date: dateValue,
+      dateValue,
+      dateLabel,
+    },
+    fields: [
+      {
+        id: "trainingProviderSignature",
+        label: "Training Provider Signature",
+        type: "signature",
+        value: details.imageUrl,
+        defaultValue: details.imageUrl,
+        imageUrl: details.imageUrl,
+        required: true,
+      },
+      {
+        id: "trainingProviderPrintName",
+        label: "Print Name",
+        type: "text",
+        value: details.signerName,
+        defaultValue: details.signerName,
+        required: true,
+      },
+      {
+        id: "trainingProviderDate",
+        label: "Date",
+        type: "date",
+        value: dateValue,
+        defaultValue: dateValue,
+        required: true,
+      },
+    ],
   };
 }
 
@@ -613,7 +687,8 @@ function buildCandidateReadinessDeclaration(variant = "am2", signature = {}, opt
   const assessmentName = getChecklistAssessmentName(variant);
   const signatureImage = buildCandidateSignatureImagePayload(signature);
   const printName = normalizeString(options.printName) || normalizeString(signature.signerName);
-  const signedDate = formatDateOnly(signature.signedAt);
+  const signedDate = signatureImage.dateValue;
+  const signedDateLabel = signatureImage.dateLabel;
   const bodyText =
     'As the candidate, I formally confirm that I believe I am consistently demonstrating a minimum of "adequate" in every area of Knowledge and Skill detailed in this checklist and that I do not require additional training or experience in any area to become occupationally competent.';
   const confirmationText = `By signing below, I formally confirm that I am ready to undertake the ${assessmentName} Assessment.`;
@@ -637,6 +712,8 @@ function buildCandidateReadinessDeclaration(variant = "am2", signature = {}, opt
     printNameValue: printName,
     candidateName: printName,
     dateValue: signedDate,
+    date: signedDate,
+    dateLabel: signedDateLabel,
     fields: [
       {
         id: "candidateSignature",
@@ -674,6 +751,9 @@ function buildAm2ChecklistFlowPreview(course, options = {}) {
     "am2",
     options.signature || {},
     options
+  );
+  const trainingProviderSignature = buildTrainingProviderSignaturePayload(
+    options.trainingProviderSignature || {}
   );
   const checklistTemplates = buildChecklistTemplates("am2");
   const checklistSections = checklistTemplates.map((section) => ({
@@ -734,6 +814,7 @@ function buildAm2ChecklistFlowPreview(course, options = {}) {
       },
       checklistSections,
       candidateDeclaration,
+      trainingProviderSignature,
       signatures: {
         candidate: {
           supportedTypes: ["draw", "upload"],
@@ -743,10 +824,21 @@ function buildAm2ChecklistFlowPreview(course, options = {}) {
           imageUrl: candidateDeclaration.imageUrl,
           signatureImageUrl: candidateDeclaration.signatureImageUrl,
           previewUrl: candidateDeclaration.previewUrl,
+          date: candidateDeclaration.date,
+          dateValue: candidateDeclaration.dateValue,
+          dateLabel: candidateDeclaration.dateLabel,
           declaration: candidateDeclaration,
         },
         trainingProvider: {
           fields: ["trainingProviderEmail", "trainingProviderName", "subject", "message"],
+          signature: trainingProviderSignature,
+          signatureImage: trainingProviderSignature.signatureImage,
+          imageUrl: trainingProviderSignature.imageUrl,
+          signatureImageUrl: trainingProviderSignature.signatureImageUrl,
+          previewUrl: trainingProviderSignature.previewUrl,
+          date: trainingProviderSignature.date,
+          dateValue: trainingProviderSignature.dateValue,
+          dateLabel: trainingProviderSignature.dateLabel,
         },
       },
       submit: {
@@ -1006,6 +1098,9 @@ function buildAm2eChecklistFlowPreview(course, variant, options = {}) {
     options.signature || {},
     options
   );
+  const trainingProviderSignature = buildTrainingProviderSignaturePayload(
+    options.trainingProviderSignature || {}
+  );
   const checklistTemplates = buildChecklistTemplates(variant);
   const checklistSections = checklistTemplates.map((section) => ({
     id: section.id,
@@ -1063,6 +1158,7 @@ function buildAm2eChecklistFlowPreview(course, variant, options = {}) {
       },
       checklistSections,
       candidateDeclaration,
+      trainingProviderSignature,
       signatures: {
         candidate: {
           supportedTypes: ["draw", "upload"],
@@ -1072,10 +1168,21 @@ function buildAm2eChecklistFlowPreview(course, variant, options = {}) {
           imageUrl: candidateDeclaration.imageUrl,
           signatureImageUrl: candidateDeclaration.signatureImageUrl,
           previewUrl: candidateDeclaration.previewUrl,
+          date: candidateDeclaration.date,
+          dateValue: candidateDeclaration.dateValue,
+          dateLabel: candidateDeclaration.dateLabel,
           declaration: candidateDeclaration,
         },
         trainingProvider: {
           fields: ["trainingProviderEmail", "trainingProviderName", "subject", "message"],
+          signature: trainingProviderSignature,
+          signatureImage: trainingProviderSignature.signatureImage,
+          imageUrl: trainingProviderSignature.imageUrl,
+          signatureImageUrl: trainingProviderSignature.signatureImageUrl,
+          previewUrl: trainingProviderSignature.previewUrl,
+          date: trainingProviderSignature.date,
+          dateValue: trainingProviderSignature.dateValue,
+          dateLabel: trainingProviderSignature.dateLabel,
         },
       },
       submit: {
@@ -1131,6 +1238,76 @@ async function findChecklistCourseById(courseId) {
   }
 
   return { course };
+}
+
+async function findChecklistFlowBookingContext(courseId, req) {
+  const bookingId = normalizeString(
+    req.query?.bookingId || req.query?.booking || req.query?.booking_id
+  );
+
+  if (bookingId && !mongoose.isValidObjectId(bookingId)) {
+    return {
+      status: 400,
+      error: "Invalid booking id",
+    };
+  }
+
+  if (!req.user) {
+    return bookingId
+      ? {
+          status: 401,
+          error: "Authorization token is required to load booking signatures",
+        }
+      : { booking: null };
+  }
+
+  const query = {
+    course: courseId,
+  };
+
+  if (bookingId) {
+    query._id = bookingId;
+  }
+
+  if (req.user.role !== "admin") {
+    query.user = req.user.id;
+  }
+
+  const booking = await Booking.findOne(query)
+    .populate(
+      "course",
+      "title slug qualification assessmentVariant sourceCourseName location schedule duration detailSections thumbnailUrl"
+    )
+    .sort({
+      "candidateSignature.signedAt": -1,
+      "trainingProviderSignature.signedAt": -1,
+      updatedAt: -1,
+      createdAt: -1,
+    });
+
+  if (bookingId && !booking) {
+    return {
+      status: 404,
+      error: "Booking not found for this course",
+    };
+  }
+
+  return { booking: booking || null };
+}
+
+async function buildChecklistFlowResponseDataForRequest(course, variantResult, req) {
+  const bookingContext = await findChecklistFlowBookingContext(course._id, req);
+
+  if (bookingContext.error) {
+    return bookingContext;
+  }
+
+  return {
+    data: buildChecklistFlowResponseData(course, variantResult, {
+      ...(req.query || {}),
+      __bookingContext: bookingContext.booking,
+    }),
+  };
 }
 
 function inferChecklistVariantFromCourse(course) {
@@ -1402,8 +1579,15 @@ function buildChecklistVariantSummary(course, variantResult, query = {}) {
 }
 
 function buildChecklistFlowResponseData(course, variantResult, query = {}) {
+  const booking = query.__bookingContext || null;
   const candidateDeclarationOptions = {
-    printName: getCandidatePrintNameFromQuery(query),
+    printName:
+      booking?.personalDetails?.fullName ||
+      getCandidatePrintNameFromQuery(query) ||
+      booking?.candidateSignature?.signerName ||
+      "",
+    signature: booking?.candidateSignature || {},
+    trainingProviderSignature: booking?.trainingProviderSignature || {},
   };
   const responseData =
     variantResult.variant === "am2"
@@ -1426,6 +1610,16 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
     responseData.course.displayPrice = variantSummary.course.displayPrice;
     responseData.course.pricing = variantSummary.course.pricing;
     responseData.course.assessmentVariantPricing = variantSummary.course.assessmentVariantPricing;
+  }
+
+  if (booking) {
+    responseData.bookingContext = {
+      id: String(booking._id),
+      bookingNumber: booking.bookingNumber || "",
+      candidateName: booking.personalDetails?.fullName || "",
+      candidateSignatureStatus: getCandidateSignatureStatus(booking),
+      trainingProviderSignatureStatus: getTrainingProviderSignatureStatus(booking),
+    };
   }
 
   return responseData;
@@ -1513,6 +1707,7 @@ function buildBookingChecklistFlowResponse(booking) {
     variant: variantMetadata.checklistVariant,
     questionId: variantMetadata.resolvedFrom.selectedQuestionId,
     answerId: variantMetadata.resolvedFrom.selectedAnswerId,
+    __bookingContext: booking,
   });
 
   responseData.availableVariants = (responseData.availableVariants || []).filter(
@@ -4963,6 +5158,9 @@ function buildBookingFlowSignaturesScreen(booking) {
         imageUrl: candidateDeclaration.imageUrl,
         signatureImageUrl: candidateDeclaration.signatureImageUrl,
         previewUrl: candidateDeclaration.previewUrl,
+        date: candidateDeclaration.date,
+        dateValue: candidateDeclaration.dateValue,
+        dateLabel: candidateDeclaration.dateLabel,
         action: {
           label: "Submit Signature",
           method: "POST",
@@ -6808,10 +7006,22 @@ async function getAm2ChecklistFlowByCourseId(req, res, next) {
       });
     }
 
+    const flowResult = await buildChecklistFlowResponseDataForRequest(
+      courseResult.course,
+      variantResult,
+      req
+    );
+    if (flowResult.error) {
+      return res.status(flowResult.status).json({
+        success: false,
+        message: flowResult.error,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "AM2 checklist flow fetched successfully",
-      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
+      data: flowResult.data,
     });
   } catch (error) {
     return next(error);
@@ -6837,10 +7047,22 @@ async function getChecklistFlowByCourseId(req, res, next) {
       });
     }
 
+    const flowResult = await buildChecklistFlowResponseDataForRequest(
+      courseResult.course,
+      variantResult,
+      req
+    );
+    if (flowResult.error) {
+      return res.status(flowResult.status).json({
+        success: false,
+        message: flowResult.error,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Checklist flow fetched successfully",
-      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
+      data: flowResult.data,
     });
   } catch (error) {
     return next(error);
@@ -6897,10 +7119,22 @@ async function getAm2eChecklistFlowByCourseId(req, res, next) {
       });
     }
 
+    const flowResult = await buildChecklistFlowResponseDataForRequest(
+      courseResult.course,
+      variantResult,
+      req
+    );
+    if (flowResult.error) {
+      return res.status(flowResult.status).json({
+        success: false,
+        message: flowResult.error,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "AM2E checklist flow fetched successfully",
-      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
+      data: flowResult.data,
     });
   } catch (error) {
     return next(error);
@@ -6928,10 +7162,22 @@ async function getAm2eV1ChecklistFlowByCourseId(req, res, next) {
       });
     }
 
+    const flowResult = await buildChecklistFlowResponseDataForRequest(
+      courseResult.course,
+      variantResult,
+      req
+    );
+    if (flowResult.error) {
+      return res.status(flowResult.status).json({
+        success: false,
+        message: flowResult.error,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "AM2E V1 checklist flow fetched successfully",
-      data: buildChecklistFlowResponseData(courseResult.course, variantResult, req.query || {}),
+      data: flowResult.data,
     });
   } catch (error) {
     return next(error);

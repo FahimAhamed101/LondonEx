@@ -37,7 +37,7 @@ const {
   getMyBookingConfirmationScreen,
   payForMyBooking,
 } = require("../controllers/bookingController");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { optionalAuth, requireAuth } = require("../middleware/authMiddleware");
 const {
   uploadBookingDocument,
   uploadBookingSignatureImage,
@@ -47,11 +47,11 @@ const router = express.Router();
 
 router.get("/provider-signature/:token", getTrainingProviderSignatureByToken);
 router.post("/provider-signature/:token", uploadBookingSignatureImage, submitTrainingProviderSignatureByToken);
-router.get("/checklist-flow", getChecklistFlowByCourseId);
-router.get("/checklist-variant", getChecklistVariantByCourseId);
-router.get("/am2-checklist-flow", getAm2ChecklistFlowByCourseId);
-router.get("/am2e-checklist-flow", getAm2eChecklistFlowByCourseId);
-router.get("/am2e-v1-checklist-flow", getAm2eV1ChecklistFlowByCourseId);
+router.get("/checklist-flow", optionalAuth, getChecklistFlowByCourseId);
+router.get("/checklist-variant", optionalAuth, getChecklistVariantByCourseId);
+router.get("/am2-checklist-flow", optionalAuth, getAm2ChecklistFlowByCourseId);
+router.get("/am2e-checklist-flow", optionalAuth, getAm2eChecklistFlowByCourseId);
+router.get("/am2e-v1-checklist-flow", optionalAuth, getAm2eV1ChecklistFlowByCourseId);
 router.get("/mock-registration-data", getMockRegistrationData);
 
 router.use(requireAuth);
