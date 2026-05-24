@@ -21,6 +21,7 @@ const {
   submitMyBookingFlow,
   getMyBookingReviewScreen,
   submitMyBookingCandidateSignature,
+  submitMyBookingTrainingProviderSignature,
   requestMyBookingTrainingProviderSignature,
   getTrainingProviderSignatureByToken,
   submitTrainingProviderSignatureByToken,
@@ -69,6 +70,11 @@ router.post(
   "/:id/flow/signatures/candidate",
   uploadBookingSignatureImage,
   submitMyBookingCandidateSignature
+);
+router.post(
+  "/:id/flow/signatures/training-provider",
+  uploadBookingSignatureImage,
+  submitMyBookingTrainingProviderSignature
 );
 router.post("/:id/flow/signatures/training-provider/request", requestMyBookingTrainingProviderSignature);
 router.get("/:id/flow/submit", getMyBookingSubmitScreen);

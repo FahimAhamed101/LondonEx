@@ -589,6 +589,7 @@ function buildCandidateSignatureImagePayload(signature = {}) {
     status: details.status,
     signatureType: details.signatureType,
     signatureData: details.signatureData,
+    url: details.url,
     imageUrl: details.imageUrl,
     signatureImageUrl: details.imageUrl,
     previewUrl: details.previewUrl,
@@ -617,6 +618,7 @@ function buildTrainingProviderSignaturePayload(signature = {}) {
     signerEmail: details.signerEmail,
     signatureType: details.signatureType,
     signatureData: details.signatureData,
+    url: details.url,
     imageUrl: details.imageUrl,
     signatureImageUrl: details.imageUrl,
     previewUrl: details.previewUrl,
@@ -632,6 +634,7 @@ function buildTrainingProviderSignaturePayload(signature = {}) {
       label: "Training Provider Signature Image",
       type: "image",
       signatureData: details.signatureData,
+      url: details.url,
       imageUrl: details.imageUrl,
       signatureImageUrl: details.imageUrl,
       previewUrl: details.previewUrl,
@@ -1242,7 +1245,11 @@ async function findChecklistCourseById(courseId) {
 
 async function findChecklistFlowBookingContext(courseId, req) {
   const bookingId = normalizeString(
-    req.query?.bookingId || req.query?.booking || req.query?.booking_id
+    req.query?.bookingId ||
+      req.query?.booking ||
+      req.query?.booking_id ||
+      req.query?.id ||
+      req.query?._id
   );
 
   if (bookingId && !mongoose.isValidObjectId(bookingId)) {
@@ -1252,13 +1259,8 @@ async function findChecklistFlowBookingContext(courseId, req) {
     };
   }
 
-  if (!req.user) {
-    return bookingId
-      ? {
-          status: 401,
-          error: "Authorization token is required to load booking signatures",
-        }
-      : { booking: null };
+  if (!req.user && !bookingId) {
+    return { booking: null };
   }
 
   const query = {
@@ -1269,7 +1271,7 @@ async function findChecklistFlowBookingContext(courseId, req) {
     query._id = bookingId;
   }
 
-  if (req.user.role !== "admin") {
+  if (req.user && req.user.role !== "admin") {
     query.user = req.user.id;
   }
 
@@ -1626,9 +1628,12 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
   responseData.signatures = {
     candidate: candidateSignature,
     trainingProvider: trainingProviderSignature,
+    candidateSignature: candidateSignature.url || candidateSignature.imageUrl || "",
+    trainingProviderSignature: trainingProviderSignature.url || trainingProviderSignature.imageUrl || "",
   };
   responseData.signatureImages = {
     candidate: {
+      url: candidateSignature.url || candidateSignature.imageUrl,
       imageUrl: candidateSignature.imageUrl,
       signatureImageUrl: candidateSignature.signatureImageUrl,
       previewUrl: candidateSignature.previewUrl,
@@ -1638,6 +1643,7 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
       dateLabel: candidateSignature.dateLabel,
     },
     trainingProvider: {
+      url: trainingProviderSignature.url || trainingProviderSignature.imageUrl,
       imageUrl: trainingProviderSignature.imageUrl,
       signatureImageUrl: trainingProviderSignature.signatureImageUrl,
       previewUrl: trainingProviderSignature.previewUrl,
@@ -3082,6 +3088,7 @@ function mapSignatureForClient(signature = {}) {
     signedAt: signature.signedAt || null,
     rawSignatureData: imageAvailable ? rawSignatureData : "",
     signatureData: signatureUrl,
+    url: signatureUrl,
     imageUrl: signatureUrl,
     signatureImageUrl: signatureUrl,
     previewUrl: signatureUrl || null,
@@ -5887,6 +5894,31 @@ async function findBookingForUser(id, userId) {
   return { value: booking };
 }
 
+async function findBookingForSignatureActor(id, user) {
+  if (!mongoose.isValidObjectId(id)) {
+    return { error: "Invalid booking id", status: 400 };
+  }
+
+  const query = {
+    _id: id,
+  };
+
+  if (user?.role !== "admin") {
+    query.user = user?.id;
+  }
+
+  const booking = await Booking.findOne(query).populate(
+    "course",
+    "title slug qualification assessmentVariant sourceCourseName location schedule duration detailSections thumbnailUrl"
+  );
+
+  if (!booking) {
+    return { error: "Booking not found", status: 404 };
+  }
+
+  return { value: booking };
+}
+
 async function findLatestPendingBookingForUser(userId) {
   return Booking.findOne({
     user: userId,
@@ -7321,6 +7353,70 @@ async function submitMyBookingCandidateSignature(req, res, next) {
   }
 }
 
+async function submitMyBookingTrainingProviderSignature(req, res, next) {
+  try {
+    const bookingResult = await findBookingForSignatureActor(req.params.id, req.user);
+    if (bookingResult.error) {
+      return res.status(bookingResult.status).json({
+        success: false,
+        message: bookingResult.error,
+      });
+    }
+
+    const trainingProviderDetails = bookingResult.value.trainingProviderDetails || {};
+    const signatureResult = buildSignaturePayload({
+      ...(req.body || {}),
+      signatureData: req.uploadedSignatureFile?.fileUrl || req.body?.signatureData,
+      fileUrl: req.uploadedSignatureFile?.fileUrl || req.body?.fileUrl,
+      fileName: req.uploadedSignatureFile?.fileName || req.body?.fileName,
+      signatureType:
+        req.body?.signatureType ||
+        req.body?.type ||
+        (req.uploadedSignatureFile ? "upload" : undefined),
+      signerName:
+        req.body?.signerName ||
+        req.body?.name ||
+        trainingProviderDetails.contactName ||
+        trainingProviderDetails.companyName ||
+        "",
+      signerEmail: req.body?.signerEmail || req.body?.email || trainingProviderDetails.email || "",
+    });
+    if (signatureResult.error) {
+      return res.status(400).json({
+        success: false,
+        message: signatureResult.error,
+      });
+    }
+
+    bookingResult.value.trainingProviderSignature = {
+      ...(bookingResult.value.trainingProviderSignature?.toObject
+        ? bookingResult.value.trainingProviderSignature.toObject()
+        : {}),
+      status: "signed",
+      signerName: signatureResult.value.signerName,
+      signerEmail: signatureResult.value.signerEmail,
+      signatureType: signatureResult.value.signatureType || "",
+      signatureData: signatureResult.value.signatureData,
+      fileName: signatureResult.value.fileName,
+      signedAt: new Date(),
+    };
+    await bookingResult.value.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Training provider signature submitted successfully",
+      data: {
+        trainingProviderSignature: buildTrainingProviderSignaturePayload(
+          bookingResult.value.trainingProviderSignature
+        ),
+        screen: buildBookingFlowSignaturesScreen(bookingResult.value),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function requestMyBookingTrainingProviderSignature(req, res, next) {
   try {
     const bookingResult = await findBookingForUser(req.params.id, req.user.id);
@@ -8149,6 +8245,7 @@ module.exports = {
   getTrainingProviderSignatureByToken,
   submitTrainingProviderSignatureByToken,
   submitMyBookingCandidateSignature,
+  submitMyBookingTrainingProviderSignature,
   requestMyBookingTrainingProviderSignature,
   saveMyBookingEligibility,
   saveMyBookingAssessmentDetails,
