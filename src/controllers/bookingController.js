@@ -3022,14 +3022,55 @@ function getSignatureMimeType(value, fileName = "") {
   return "image/png";
 }
 
+function getRawSignatureData(signature = {}) {
+  return normalizeString(
+    signature.signatureData ||
+      signature.signatureImageUrl ||
+      signature.fileUrl ||
+      signature.imageUrl ||
+      signature.previewUrl ||
+      signature.downloadUrl
+  );
+}
+
+function normalizeSignatureImageUrl(value) {
+  const signatureValue = normalizeString(value);
+
+  if (!signatureValue) {
+    return "";
+  }
+
+  const normalizedPath = signatureValue.replace(/\\/g, "/");
+
+  if (/^uploads\//i.test(normalizedPath)) {
+    return `/${normalizedPath}`;
+  }
+
+  return normalizedPath;
+}
+
+function isImageFilePath(value) {
+  return /\.(jpe?g|png|webp|gif|svg)(?:[?#].*)?$/i.test(normalizeString(value));
+}
+
 function isRenderableSignatureImage(value) {
-  return /^(https?:\/\/|\/uploads\/|data:image\/)/i.test(normalizeString(value));
+  const signatureValue = normalizeSignatureImageUrl(value);
+
+  return /^(https?:\/\/|\/uploads\/|data:image\/)/i.test(signatureValue) || isImageFilePath(signatureValue);
 }
 
 function mapSignatureForClient(signature = {}) {
-  const signatureData = normalizeString(signature.signatureData);
-  const imageAvailable = Boolean(signatureData && isRenderableSignatureImage(signatureData));
-  const signatureUrl = imageAvailable ? signatureData : "";
+  const rawSignatureData = getRawSignatureData(signature);
+  const signatureType = normalizeString(signature.signatureType).toLowerCase();
+  const imageAvailable = Boolean(
+    rawSignatureData &&
+      signatureType !== "typed" &&
+      (isRenderableSignatureImage(rawSignatureData) ||
+        signatureType === "draw" ||
+        signatureType === "upload" ||
+        isImageFilePath(signature.fileName))
+  );
+  const signatureUrl = imageAvailable ? normalizeSignatureImageUrl(rawSignatureData) : "";
 
   return {
     status: signature.status || "not_signed",
@@ -3039,8 +3080,10 @@ function mapSignatureForClient(signature = {}) {
     fileName: signature.fileName || "",
     requestedAt: signature.requestedAt || null,
     signedAt: signature.signedAt || null,
+    rawSignatureData: imageAvailable ? rawSignatureData : "",
     signatureData: signatureUrl,
     imageUrl: signatureUrl,
+    signatureImageUrl: signatureUrl,
     previewUrl: signatureUrl || null,
     downloadUrl: signatureUrl || null,
     available: imageAvailable,
