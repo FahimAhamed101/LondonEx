@@ -1628,12 +1628,12 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
   responseData.signatures = {
     candidate: candidateSignature,
     trainingProvider: trainingProviderSignature,
-    candidateSignature: candidateSignature.url || candidateSignature.imageUrl || "",
-    trainingProviderSignature: trainingProviderSignature.url || trainingProviderSignature.imageUrl || "",
+    candidateSignature: candidateSignature.url || candidateSignature.imageUrl || null,
+    trainingProviderSignature: trainingProviderSignature.url || trainingProviderSignature.imageUrl || null,
   };
   responseData.signatureImages = {
     candidate: {
-      url: candidateSignature.url || candidateSignature.imageUrl,
+      url: candidateSignature.url || candidateSignature.imageUrl || null,
       imageUrl: candidateSignature.imageUrl,
       signatureImageUrl: candidateSignature.signatureImageUrl,
       previewUrl: candidateSignature.previewUrl,
@@ -1643,7 +1643,7 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
       dateLabel: candidateSignature.dateLabel,
     },
     trainingProvider: {
-      url: trainingProviderSignature.url || trainingProviderSignature.imageUrl,
+      url: trainingProviderSignature.url || trainingProviderSignature.imageUrl || null,
       imageUrl: trainingProviderSignature.imageUrl,
       signatureImageUrl: trainingProviderSignature.signatureImageUrl,
       previewUrl: trainingProviderSignature.previewUrl,
@@ -3068,25 +3068,23 @@ function isRenderableSignatureImage(value) {
 function mapSignatureForClient(signature = {}) {
   const rawSignatureData = getRawSignatureData(signature);
   const signatureType = normalizeString(signature.signatureType).toLowerCase();
+  const status = signature.status || "not_signed";
   const imageAvailable = Boolean(
     rawSignatureData &&
       signatureType !== "typed" &&
-      (isRenderableSignatureImage(rawSignatureData) ||
-        signatureType === "draw" ||
-        signatureType === "upload" ||
-        isImageFilePath(signature.fileName))
+      isRenderableSignatureImage(rawSignatureData)
   );
-  const signatureUrl = imageAvailable ? normalizeSignatureImageUrl(rawSignatureData) : "";
+  const signatureUrl = imageAvailable ? normalizeSignatureImageUrl(rawSignatureData) : null;
 
   return {
-    status: signature.status || "not_signed",
+    status,
     signerName: signature.signerName || "",
     signerEmail: signature.signerEmail || "",
     signatureType: signature.signatureType || "",
     fileName: signature.fileName || "",
     requestedAt: signature.requestedAt || null,
     signedAt: signature.signedAt || null,
-    rawSignatureData: imageAvailable ? rawSignatureData : "",
+    rawSignatureData: imageAvailable ? rawSignatureData : null,
     signatureData: signatureUrl,
     url: signatureUrl,
     imageUrl: signatureUrl,
@@ -3118,6 +3116,9 @@ function buildSignatureDocumentItem(booking, config) {
     signatureRole: config.id,
     isDerived: false,
     available: true,
+    url: details.url || details.imageUrl,
+    imageUrl: details.imageUrl,
+    signatureImageUrl: details.signatureImageUrl,
     previewUrl: details.previewUrl,
     downloadUrl: details.downloadUrl,
     fileUrl: details.imageUrl || details.signatureData,
@@ -3215,6 +3216,14 @@ function buildBookingDocuments(booking) {
 function buildBookingVerification(booking) {
   const candidateSigned = getCandidateSignatureStatus(booking) === "signed";
   const providerSigned = getTrainingProviderSignatureStatus(booking) === "signed";
+  const candidateSignature = {
+    ...mapSignatureForClient(booking.candidateSignature || {}),
+    status: getCandidateSignatureStatus(booking),
+  };
+  const trainingProviderSignature = {
+    ...mapSignatureForClient(booking.trainingProviderSignature || {}),
+    status: getTrainingProviderSignatureStatus(booking),
+  };
 
   return {
     title: "Signatures & Verification",
@@ -3226,6 +3235,11 @@ function buildBookingVerification(booking) {
         supportingText: candidateSigned
           ? "The candidate signature has been submitted."
           : "The candidate has not completed a signed submission yet.",
+        signature: candidateSignature,
+        url: candidateSignature.url || candidateSignature.imageUrl,
+        imageUrl: candidateSignature.imageUrl,
+        signatureImageUrl: candidateSignature.signatureImageUrl,
+        previewUrl: candidateSignature.previewUrl,
         action: {
           label: "View",
           type: "view_candidate",
@@ -3240,6 +3254,11 @@ function buildBookingVerification(booking) {
         supportingText: providerSigned
           ? "Training provider verification is completed."
           : "Training provider verification is still pending.",
+        signature: trainingProviderSignature,
+        url: trainingProviderSignature.url || trainingProviderSignature.imageUrl,
+        imageUrl: trainingProviderSignature.imageUrl,
+        signatureImageUrl: trainingProviderSignature.signatureImageUrl,
+        previewUrl: trainingProviderSignature.previewUrl,
         action: {
           label: "View",
           type: "view_booking",
@@ -5668,9 +5687,40 @@ function mapBookingDetail(booking, options = {}) {
 function mapAdminBookingDetail(booking) {
   const course = booking.course && typeof booking.course === "object" ? booking.course : null;
   const variantMetadata = buildBookingChecklistVariantMetadata(booking);
+  const bookingDetail = mapBookingDetail(booking, { includeUser: true, includeAdminActions: true });
+  const candidateSignature = bookingDetail.candidateSignature || buildCandidateSignatureImagePayload();
+  const trainingProviderSignature =
+    bookingDetail.trainingProviderSignature || buildTrainingProviderSignaturePayload();
 
   return {
-    ...mapBookingDetail(booking, { includeUser: true, includeAdminActions: true }),
+    ...bookingDetail,
+    candidateSignatureImageUrl: candidateSignature.imageUrl || null,
+    trainingProviderSignatureImageUrl: trainingProviderSignature.imageUrl || null,
+    signatureImages: {
+      candidate: {
+        url: candidateSignature.url || candidateSignature.imageUrl || null,
+        imageUrl: candidateSignature.imageUrl || null,
+        signatureImageUrl: candidateSignature.signatureImageUrl || candidateSignature.imageUrl || null,
+        previewUrl: candidateSignature.previewUrl || null,
+        available: Boolean(candidateSignature.available),
+        date: candidateSignature.date || formatDateOnly(candidateSignature.signedAt),
+        dateValue: candidateSignature.dateValue || formatDateOnly(candidateSignature.signedAt),
+        dateLabel: candidateSignature.dateLabel || formatDisplayDateShort(candidateSignature.signedAt),
+      },
+      trainingProvider: {
+        url: trainingProviderSignature.url || trainingProviderSignature.imageUrl || null,
+        imageUrl: trainingProviderSignature.imageUrl || null,
+        signatureImageUrl:
+          trainingProviderSignature.signatureImageUrl || trainingProviderSignature.imageUrl || null,
+        previewUrl: trainingProviderSignature.previewUrl || null,
+        available: Boolean(trainingProviderSignature.available),
+        date: trainingProviderSignature.date || formatDateOnly(trainingProviderSignature.signedAt),
+        dateValue: trainingProviderSignature.dateValue || formatDateOnly(trainingProviderSignature.signedAt),
+        dateLabel:
+          trainingProviderSignature.dateLabel ||
+          formatDisplayDateShort(trainingProviderSignature.signedAt),
+      },
+    },
     breadcrumbs: [
       {
         label: "Dashboard",
