@@ -8246,11 +8246,19 @@ async function updateAdminBooking(req, res, next) {
     };
     let approvalEmailDelivery = null;
     const nextApplicationStatus = booking.applicationStatus || "draft";
-    if (previousApplicationStatus !== "approved" && nextApplicationStatus === "approved") {
+    const explicitAdminApproval =
+      applicationStatus === "approved" ||
+      status === "confirmed" ||
+      (paymentStatus === "paid" && previousApplicationStatus !== "approved");
+    if (
+      nextApplicationStatus === "approved" &&
+      (previousApplicationStatus !== "approved" || explicitAdminApproval)
+    ) {
       const createdNotifications = await notifyUserOfBookingApproval(booking, req.user);
       approvalNotification = {
         created: createdNotifications.length > 0,
         count: createdNotifications.length,
+        type: booking.payment?.status === "paid" ? "booking_approved" : "paperwork_approved",
       };
       approvalEmailDelivery = await sendBookingApprovalEmailForBooking(booking);
     }

@@ -27,7 +27,8 @@ function formatDisplayDateTime(value) {
 function getNotificationTypeLabel(type) {
   return {
     booking_submitted: "Booking Submitted",
-    booking_approved: "Paperwork Approved",
+    booking_approved: "Booking Approved",
+    paperwork_approved: "Paperwork Approved",
   }[type] || "Notification";
 }
 

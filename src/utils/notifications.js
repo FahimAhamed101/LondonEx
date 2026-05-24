@@ -31,22 +31,25 @@ function buildBookingSubmittedNotificationPayload({ booking, actor, recipientId 
 function buildBookingApprovedNotificationPayload({ booking, actor, recipientId }) {
   const courseTitle = normalizeString(booking.courseSnapshot?.title) || "your booking";
   const isPaid = booking.payment?.status === "paid";
+  const actorName = normalizeString(actor?.name) || "Admin";
 
   return {
     recipient: recipientId,
     actor: actor?._id || actor?.id || null,
-    type: "booking_approved",
+    type: isPaid ? "booking_approved" : "paperwork_approved",
     booking: booking._id,
     title: isPaid ? "Booking approved" : "Paperwork approved",
     message: isPaid
-      ? `Your ${courseTitle} booking has been approved and payment has been recorded.`
-      : `Your paperwork for ${courseTitle} has been approved. You can proceed to payment now.`,
+      ? `${actorName} approved your ${courseTitle} booking and payment has been recorded.`
+      : `${actorName} approved your paperwork for ${courseTitle}. You can proceed to payment now.`,
     metadata: {
       bookingId: String(booking._id),
       applicationStatus: booking.applicationStatus || "approved",
       courseTitle,
       paymentStatus: booking.payment?.status || "pending",
       paymentRequired: !isPaid,
+      actorName,
+      approvalType: isPaid ? "booking" : "paperwork",
     },
   };
 }
@@ -86,13 +89,41 @@ async function notifyUserOfBookingApproval(booking, actor) {
     return [];
   }
 
-  return createNotifications([
-    buildBookingApprovedNotificationPayload({
-      booking,
-      actor,
-      recipientId: userId,
-    }),
-  ]);
+  const payload = buildBookingApprovedNotificationPayload({
+    booking,
+    actor,
+    recipientId: userId,
+  });
+
+  const notification = await Notification.findOneAndUpdate(
+    {
+      recipient: payload.recipient,
+      booking: payload.booking,
+      type: payload.type,
+    },
+    {
+      $set: {
+        actor: payload.actor,
+        title: payload.title,
+        message: payload.message,
+        metadata: payload.metadata,
+        isRead: false,
+        readAt: null,
+      },
+      $setOnInsert: {
+        recipient: payload.recipient,
+        booking: payload.booking,
+        type: payload.type,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }
+  );
+
+  return notification ? [notification] : [];
 }
 
 module.exports = {

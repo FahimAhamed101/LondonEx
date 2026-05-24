@@ -57,6 +57,27 @@ function parseJsonArrayString(value) {
   }
 }
 
+function parseJsonObjectString(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue.startsWith("{") || !trimmedValue.endsWith("}")) {
+    return null;
+  }
+
+  try {
+    const parsedValue = JSON.parse(trimmedValue);
+    return parsedValue && typeof parsedValue === "object" && !Array.isArray(parsedValue)
+      ? parsedValue
+      : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 function normalizeBoolean(value, fallbackValue = false) {
   if (typeof value === "boolean") {
     return value;
@@ -153,7 +174,92 @@ function buildCourseImageUrls(course) {
   return Array.from(new Set(imageUrls));
 }
 
-function normalizeDetailSections(sections) {
+function normalizeSectionContent(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeString(item)).filter(Boolean).join("\n");
+  }
+
+  if (value && typeof value === "object") {
+    return normalizeString(value.content || value.value || value.text || value.description);
+  }
+
+  return normalizeString(value);
+}
+
+function getFirstSectionContent(source, aliases) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return "";
+  }
+
+  for (const alias of aliases) {
+    const content = normalizeSectionContent(source[alias]);
+    if (content) {
+      return content;
+    }
+  }
+
+  return "";
+}
+
+function normalizeNamedDetailSections(source) {
+  const details = typeof source === "string" ? parseJsonObjectString(source) : source;
+
+  if (!details || typeof details !== "object" || Array.isArray(details)) {
+    return [];
+  }
+
+  return [
+    {
+      title: "What you'll learn",
+      content: getFirstSectionContent(details, [
+        "whatYouWillLearn",
+        "whatYoullLearn",
+        "what_you_will_learn",
+        "what_youll_learn",
+        "learn",
+      ]),
+    },
+    {
+      title: "How you'll learn",
+      content: getFirstSectionContent(details, [
+        "howYouWillLearn",
+        "howYoullLearn",
+        "how_you_will_learn",
+        "how_youll_learn",
+        "how",
+      ]),
+    },
+    {
+      title: "Additional info",
+      content: getFirstSectionContent(details, [
+        "additionalInfo",
+        "additionalInformation",
+        "additional_info",
+        "additional_information",
+        "info",
+      ]),
+    },
+  ].filter((section) => section.content);
+}
+
+function hasNamedDetailSectionPayload(payload = {}) {
+  return [
+    "whatYouWillLearn",
+    "whatYoullLearn",
+    "what_you_will_learn",
+    "what_youll_learn",
+    "howYouWillLearn",
+    "howYoullLearn",
+    "how_you_will_learn",
+    "how_youll_learn",
+    "additionalInfo",
+    "additionalInformation",
+    "additional_info",
+    "additional_information",
+  ].some((key) => Object.prototype.hasOwnProperty.call(payload, key));
+}
+
+function normalizeDetailSections(sections, payload = {}) {
   if (typeof sections === "string") {
     const parsedSections = parseJsonArrayString(sections);
     if (parsedSections) {
@@ -166,11 +272,16 @@ function normalizeDetailSections(sections) {
         .slice(0, 10);
     }
 
-    return [];
+    return normalizeNamedDetailSections(sections);
+  }
+
+  const namedSections = normalizeNamedDetailSections(sections);
+  if (namedSections.length > 0) {
+    return namedSections;
   }
 
   if (!Array.isArray(sections)) {
-    return [];
+    return normalizeNamedDetailSections(payload);
   }
 
   return sections
@@ -608,7 +719,8 @@ function buildCoursePayload(payload, options = {}) {
   const currency = normalizeString(payload.currency).toUpperCase() || "GBP";
   const tags = normalizeTags(payload.tags);
   const detailSections = normalizeDetailSections(
-    payload.detailSections || payload.sections || payload.courseDetails
+    payload.detailSections || payload.sections || payload.courseDetails,
+    payload
   );
 
   const courseData = {};
@@ -823,6 +935,7 @@ function buildCoursePayload(payload, options = {}) {
     Object.prototype.hasOwnProperty.call(payload, "detailSections") ||
     Object.prototype.hasOwnProperty.call(payload, "sections") ||
     Object.prototype.hasOwnProperty.call(payload, "courseDetails") ||
+    hasNamedDetailSectionPayload(payload) ||
     !partial
   ) {
     courseData.detailSections = detailSections;
@@ -1026,6 +1139,7 @@ function mapCourseSummary(course) {
   const pricing = buildCoursePricing(course);
   const variantConfig = getAssessmentVariantConfig(course.assessmentVariant);
   const assessmentVariantPricing = buildAssessmentVariantPricing(course);
+  const detailSections = mapCourseDetailSections(course);
 
   return {
     id: course._id,
@@ -1049,6 +1163,9 @@ function mapCourseSummary(course) {
     imageUrl: primaryImage,
     imageUrls,
     galleryImages: normalizeStringArray(course.galleryImages, 100),
+    sections: detailSections,
+    detailSections,
+    courseDetails: buildCourseDetailsObject(detailSections),
     tags: course.tags,
     isPublished: course.isPublished,
     createdAt: course.createdAt,
@@ -1210,6 +1327,42 @@ function buildDefaultSections(course) {
   return sections;
 }
 
+function findSectionByTitle(sections, title) {
+  const normalizedTitle = normalizeString(title).toLowerCase();
+
+  return (sections || []).find((section) => normalizeString(section.title).toLowerCase() === normalizedTitle);
+}
+
+function buildCourseDetailsObject(sections) {
+  const whatYouWillLearn = findSectionByTitle(sections, "What you'll learn");
+  const howYouWillLearn = findSectionByTitle(sections, "How you'll learn");
+  const additionalInfo = findSectionByTitle(sections, "Additional info");
+
+  return {
+    whatYouWillLearn: {
+      title: "What you'll learn",
+      content: whatYouWillLearn?.content || "",
+    },
+    howYouWillLearn: {
+      title: "How you'll learn",
+      content: howYouWillLearn?.content || "",
+    },
+    additionalInfo: {
+      title: "Additional info",
+      content: additionalInfo?.content || "",
+    },
+  };
+}
+
+function mapCourseDetailSections(course) {
+  return Array.isArray(course.detailSections) && course.detailSections.length > 0
+    ? course.detailSections.map((section) => ({
+        title: section.title,
+        content: section.content,
+      }))
+    : buildDefaultSections(course);
+}
+
 function buildEligibilityCheckOptions() {
   return [
     {
@@ -1327,13 +1480,7 @@ function buildBookNowModal(course) {
 
 function mapCourseDetail(course) {
   const summary = mapCourseSummary(course);
-  const sections =
-    Array.isArray(course.detailSections) && course.detailSections.length > 0
-      ? course.detailSections.map((section) => ({
-          title: section.title,
-          content: section.content,
-        }))
-      : buildDefaultSections(course);
+  const sections = mapCourseDetailSections(course);
 
   return {
     ...summary,
@@ -1357,6 +1504,7 @@ function mapCourseDetail(course) {
     bookNowModal: buildBookNowModal(course),
     sections,
     detailSections: sections,
+    courseDetails: buildCourseDetailsObject(sections),
     order: course.order,
   };
 }
@@ -1364,9 +1512,19 @@ function mapCourseDetail(course) {
 function mapCatalogCourseCard(course, reservedSeats = 0) {
   const summary = mapCourseSummary(course);
   const capacity = mapCourseCapacity(course, reservedSeats);
+  const detailSections = summary.detailSections || [];
+  const courseDetails = summary.courseDetails || buildCourseDetailsObject(detailSections);
 
   return {
     ...summary,
+    sections: detailSections,
+    detailSections,
+    courseDetails,
+    details: {
+      title: "Course details",
+      sections: detailSections,
+      ...courseDetails,
+    },
     totalSeats: capacity.totalSeats,
     bookedSeats: capacity.bookedSeats,
     remainingSeats: capacity.remainingSeats,
@@ -2212,6 +2370,9 @@ async function getCourseCatalogScreen(req, res, next) {
       Course.countDocuments(filter),
     ]);
     const reservedSeatsMap = await buildReservedSeatsMap(courses.map((course) => course._id));
+    const courseCards = courses.map((course) =>
+      mapCatalogCourseCard(course, reservedSeatsMap.get(String(course._id)) || 0)
+    );
 
     return res.status(200).json({
       success: true,
@@ -2224,9 +2385,7 @@ async function getCourseCatalogScreen(req, res, next) {
             search,
             status,
           },
-          cards: courses.map((course) =>
-            mapCatalogCourseCard(course, reservedSeatsMap.get(String(course._id)) || 0)
-          ),
+          cards: courseCards,
           pagination: {
             page,
             limit,
@@ -2234,6 +2393,7 @@ async function getCourseCatalogScreen(req, res, next) {
             totalPages: Math.max(1, Math.ceil(total / limit)),
           },
         },
+        courses: courseCards,
       },
     });
   } catch (error) {
