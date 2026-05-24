@@ -1612,6 +1612,42 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
     responseData.course.assessmentVariantPricing = variantSummary.course.assessmentVariantPricing;
   }
 
+  const candidateSignature = {
+    ...(responseData.flow?.candidateDeclaration?.signatureImage || buildCandidateSignatureImagePayload()),
+    printName: responseData.flow?.candidateDeclaration?.printName || "",
+    signerName: booking?.candidateSignature?.signerName || responseData.flow?.candidateDeclaration?.printName || "",
+    signerEmail: booking?.candidateSignature?.signerEmail || "",
+  };
+  const trainingProviderSignature =
+    responseData.flow?.trainingProviderSignature || buildTrainingProviderSignaturePayload();
+
+  responseData.candidateSignature = candidateSignature;
+  responseData.trainingProviderSignature = trainingProviderSignature;
+  responseData.signatures = {
+    candidate: candidateSignature,
+    trainingProvider: trainingProviderSignature,
+  };
+  responseData.signatureImages = {
+    candidate: {
+      imageUrl: candidateSignature.imageUrl,
+      signatureImageUrl: candidateSignature.signatureImageUrl,
+      previewUrl: candidateSignature.previewUrl,
+      available: candidateSignature.available,
+      date: candidateSignature.date,
+      dateValue: candidateSignature.dateValue,
+      dateLabel: candidateSignature.dateLabel,
+    },
+    trainingProvider: {
+      imageUrl: trainingProviderSignature.imageUrl,
+      signatureImageUrl: trainingProviderSignature.signatureImageUrl,
+      previewUrl: trainingProviderSignature.previewUrl,
+      available: trainingProviderSignature.available,
+      date: trainingProviderSignature.date,
+      dateValue: trainingProviderSignature.dateValue,
+      dateLabel: trainingProviderSignature.dateLabel,
+    },
+  };
+
   if (booking) {
     responseData.bookingContext = {
       id: String(booking._id),
@@ -1619,6 +1655,9 @@ function buildChecklistFlowResponseData(course, variantResult, query = {}) {
       candidateName: booking.personalDetails?.fullName || "",
       candidateSignatureStatus: getCandidateSignatureStatus(booking),
       trainingProviderSignatureStatus: getTrainingProviderSignatureStatus(booking),
+      candidateSignature: responseData.candidateSignature,
+      trainingProviderSignature: responseData.trainingProviderSignature,
+      signatureImages: responseData.signatureImages,
     };
   }
 
